@@ -162,6 +162,20 @@ class LauncherTests(unittest.TestCase):
         # The DLL's refusal on stderr is parsed like any other event
         self.assertIn('host verification failed', session['session']['error'] or '')
 
+    def test_a_host_that_stopped_itself_still_gets_its_stderr_parsed(self):
+        """The DLL can give up on its own (end of life), which ends the host"""
+        session = self._start()
+        proc = session['proc']
+        proc._alive = False  # the host exited without being asked to
+        proc._err.write('dll 1 2 3 ERROR ltk_patcher_dll::entry: end of life reached\n')
+        proc._err.flush()
+
+        OverlayManager._stop_ltk_patcher(proc)
+        session['reader'].join(timeout=10)
+
+        self.assertTrue(session['session']['eol'])
+        self.assertIn('end of life reached', session['session']['error'] or '')
+
     def test_a_failed_indirection_falls_back_to_a_direct_spawn(self):
         direct = MagicMock()
         with patch.object(patcher_launcher, 'launch_ltk_patcher_host', return_value=None), \

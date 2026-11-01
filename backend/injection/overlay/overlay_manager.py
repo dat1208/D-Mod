@@ -753,6 +753,11 @@ class OverlayManager:
     def _stop_ltk_patcher(proc):
         """Ask the LTK patcher host to stop, force-killing it after a grace period."""
         if proc.poll() is not None:
+            # The host stopped on its own (the DLL detached, for one), so its
+            # stderr still has to reach the reader: that is where the DLL says
+            # why it gave up.
+            if isinstance(proc, PatcherHostProcess):
+                proc.drain_stderr()
             return
         try:
             proc.stdin.write("stop\n")
