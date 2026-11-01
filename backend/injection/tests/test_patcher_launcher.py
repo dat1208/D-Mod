@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tempfile
 import threading
@@ -114,7 +115,7 @@ class LauncherTests(unittest.TestCase):
         self.assertIsInstance(session['proc'], PatcherHostProcess)
         self.assertIsInstance(session['proc'], FakeHost)
 
-    def test_the_command_line_goes_through_explorer_with_the_session_files(self):
+    def test_the_command_goes_through_explorer_in_a_script(self):
         files = patcher_launcher._SessionFiles(
             directory=self.root, stdin=self.root / 'in', stdout=self.root / 'out', stderr=self.root / 'err',
         )
@@ -124,13 +125,17 @@ class LauncherTests(unittest.TestCase):
                 patch.object(patcher_launcher, '_wait_for_file', return_value=True):
             patcher_launcher._launch_through_explorer(self.host, files)
 
+        # explorer.exe only opens a file, so the command lives in a script
         argv = popen.call_args[0][0]
         self.assertEqual(argv[0], patcher_launcher.EXPLORER_EXE)
-        self.assertIn(patcher_launcher.CMD_EXE, argv[1])
-        self.assertIn(f'"{self.host}"', argv[1])
-        self.assertIn(f'<"{files.stdin}"', argv[1])
-        self.assertIn(f'>"{files.stdout}"', argv[1])
-        self.assertIn(f'2>"{files.stderr}"', argv[1])
+        script = Path(argv[1])
+        self.assertEqual(script, self.root / 'run.bat')
+        text = script.read_text(encoding='mbcs' if os.name == 'nt' else 'utf-8')
+        self.assertIn(f'"{self.host}"', text)
+        self.assertIn(f'<"{files.stdin}"', text)
+        self.assertIn(f'>"{files.stdout}"', text)
+        self.assertIn(f'2>"{files.stderr}"', text)
+        self.assertIn('exit_code', text)
         self.assertEqual(popen.call_args[1]['creationflags'], subprocess.CREATE_NO_WINDOW)
 
     def test_stdout_lines_reach_the_parser(self):

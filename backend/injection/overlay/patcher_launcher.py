@@ -312,24 +312,30 @@ def _launch_through_explorer(host_exe: Path, files: _SessionFiles,
                              command: Optional[list] = None) -> subprocess.Popen:
     """Start the host from explorer.exe and return the launcher process.
 
+    explorer.exe does not run a command line: it only opens a file with its
+    default handler, so the command goes into a .bat file that explorer.exe
+    runs. cmd.exe then starts the host, whose parent is explorer.exe.
+
     Raises when explorer.exe could not be started or the host never created
     its output file, so the caller can fall back to a direct spawn.
     """
     program = " ".join(_cmd_quote(Path(part)) for part in command) if command else _cmd_quote(host_exe)
-    line = (
-        f'"{CMD_EXE}" /d /s /c "'
+    script = files.directory / "run.bat"
+    script.write_text(
+        "@echo off\r\n"
         + _HOST_COMMAND.format(
             program=program,
             stdin=_cmd_quote(files.stdin),
             stdout=_cmd_quote(files.stdout),
             stderr=_cmd_quote(files.stderr),
         )
-        + f' & echo %ERRORLEVEL% > "{files.directory / "exit_code"}"'
-        + '"'
+        + f'\r\necho %ERRORLEVEL% > "{files.directory / "exit_code"}"\r\n',
+        encoding="mbcs" if os.name == "nt" else "utf-8",
+        errors="replace",
     )
-    log.debug(f"[INJECT] Starting LTK patcher through explorer.exe: {line}")
+    log.debug(f"[INJECT] Starting LTK patcher through explorer.exe: {script}")
     launcher = subprocess.Popen(
-        [EXPLORER_EXE, line],
+        [EXPLORER_EXE, str(script)],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -369,9 +375,9 @@ def launch_ltk_patcher_host(host_exe: Path, command: Optional[list] = None) -> O
         stderr=directory / "stderr.txt",
     )
     try:
+        # Only the command file is created here: cmd.exe creates the output
+        # files, so their appearance is what proves the host really started
         files.stdin.touch()
-        files.stdout.touch()
-        files.stderr.touch()
         launcher = _launch_through_explorer(host_exe, files, command)
     except Exception as e:
         log.warning(f"[INJECT] Could not start the LTK patcher through explorer.exe: {e}")
