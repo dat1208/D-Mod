@@ -30,6 +30,8 @@ except ImportError:
 from utils.core.logging import get_logger, log_action, log_success, log_event
 from utils.core.issue_reporter import report_issue
 from ..tools.patcher import check_ltk_patcher, describe_ltk_patcher_files
+from . import patcher_launcher
+from .patcher_launcher import PatcherHostProcess
 from config import (
     GAME_EXECUTABLE_NAMES,
     PROCESS_TERMINATE_TIMEOUT_S,
@@ -461,9 +463,11 @@ class OverlayManager:
         The host speaks a line protocol: config/start commands on stdin and
         "status <ts> <state> <msg>" / "error <ts> <msg>" events on stdout.
         It stays alive between sessions, so we stop it once the game exits.
+
+        The host is started through explorer.exe so the game's parent process
+        is on the DLL's allowlist (see patcher_launcher); when that fails it is
+        started directly, which the DLL refuses but still reports.
         """
-        import sys
-        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         prefix = str(overlay_dir).rstrip("\\/") + "\\"
         commands = [
             f"config loglevel {LTK_PATCHER_LOG_LEVEL}",
@@ -525,11 +529,17 @@ class OverlayManager:
         log.debug(f"[INJECT] Starting LTK patcher: {host_exe}")
         log.info(f"[INJECT] LTK patcher files: {describe_ltk_patcher_files(host_exe.parent)}")
         try:
-            proc = subprocess.Popen(
-                [str(host_exe)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                cwd=str(host_exe.parent), creationflags=creationflags,
-                text=True, encoding="utf-8", errors="replace", bufsize=1,
+            proc = patcher_launcher.launch_ltk_patcher_host(host_exe)
+        except Exception as e:
+            log.warning(f"[INJECT] Starting the LTK patcher through explorer.exe failed: {e}")
+            proc = None
+        if proc is None:
+            log.warning(
+                "[INJECT] Starting the LTK patcher through explorer.exe failed - "
+                "starting it directly; the DLL may refuse the overlay"
             )
+        try:
+            proc = proc or patcher_launcher.spawn_ltk_patcher_host(host_exe)
         except Exception as e:
             log.error(f"[INJECT] Could not start LTK patcher: {e}")
             self._report_ltk_patcher_failure(f"could not start ({e})")
@@ -561,6 +571,13 @@ class OverlayManager:
             self.process_manager.current_overlay_process = None
         if patcher_session["log"]:
             patcher_session["log"].close()
+        self._cleanup_ltk_patcher(patcher_session["proc"])
+
+    @staticmethod
+    def _cleanup_ltk_patcher(proc):
+        """Remove what a host started through explorer.exe left behind."""
+        if isinstance(proc, PatcherHostProcess):
+            proc.cleanup()
 
     def _run_ltk_patcher(self, patcher_session: dict, overlay_dir: Path,
                          stop_callback: Optional[Callable] = None, injection_manager=None) -> int:
@@ -639,6 +656,7 @@ class OverlayManager:
             self._wipe_overlay_dir(overlay_dir)
             if runoverlay_log:
                 runoverlay_log.close()
+            self._cleanup_ltk_patcher(proc)
 
     @staticmethod
     def _report_ltk_patcher_eol(eol: str = ""):
@@ -747,6 +765,11 @@ class OverlayManager:
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+        if isinstance(proc, PatcherHostProcess):
+            # The host is gone, so its stderr is complete. Append it before the
+            # reader thread can notice the host exited, or its last lines (the
+            # DLL's refusal, for one) would never reach the parser.
+            proc.drain_stderr()
 
     @staticmethod
     def _open_runoverlay_log():
