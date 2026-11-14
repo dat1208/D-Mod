@@ -30,6 +30,7 @@ except ImportError:
 from utils.core.logging import get_logger, log_action, log_success, log_event
 from utils.core.issue_reporter import report_issue
 from ..tools.patcher import check_ltk_patcher, describe_ltk_patcher_files
+from ..tools import patcher_update
 from . import patcher_launcher
 from .patcher_launcher import PatcherHostProcess
 from config import (
@@ -263,17 +264,20 @@ class OverlayManager:
             return 1
 
         # League may have updated past the DLL's end of life since Rose started.
-        # Only a warning: the pinned DLL has no end-of-life check of its own
-        # (see updater/ltk_patcher.py), so refusing here would block every
-        # injection after a game patch even though the DLL still works. The
-        # patcher reports a refusal itself when it really cannot overlay.
+        # The date is compiled into the DLL, so the only fix is a newer one:
+        # fetch it from LTK Manager before injecting, or the game would run
+        # with the stock skin. A failed update is not fatal - the DLL reports
+        # its own refusal, which is clearer than a guess made here.
         patcher = check_ltk_patcher(ltk_host.parent)
         if patcher.expired_for(self.game_dir):
             eol = time.strftime("%Y-%m-%d %H:%M", time.localtime(patcher.eol))
             log.warning(
                 f"[INJECT] LTK patcher EOL date ({eol}) is older than this game build; "
-                "injecting anyway (the pinned DLL does not enforce it)"
+                "fetching a newer patcher"
             )
+            if patcher_update.refresh_patcher(ltk_host.parent, self.game_dir):
+                ltk_host = tools_manager.detect_ltk_patcher() or ltk_host
+                patcher = check_ltk_patcher(ltk_host.parent)
 
         # The DLL only overlays games launched after the scan started, so the
         # host must already be scanning when the game starts
@@ -376,8 +380,10 @@ class OverlayManager:
                 # Wipe extracted skin files now that mkoverlay is done with them
                 self._wipe_mods_dir()
 
-                # Hide overlay files so they can't be easily browsed
-                self._hide_directory(overlay_dir)
+                # The overlay stays visible: the DLL refuses a WAD carrying
+                # FILE_ATTRIBUTE_SYSTEM, and hiding the files protected
+                # nothing - they are still on disk either way.
+                self._unhide_directory(overlay_dir)
 
                 # DON'T resume game yet - keep it frozen until runoverlay starts
                 log_event(log, "mkoverlay done - keeping game frozen until the overlay is served", "❄️")
@@ -457,6 +463,26 @@ class OverlayManager:
             log.debug("[INJECT] Stopping the LTK patcher started for an injection that did not happen")
             self._abort_ltk_patcher(patcher_session)
 
+    def _copy_patcher_stderr(self, proc, runoverlay_log) -> None:
+        """Copy a piped host's stderr to the session log as it arrives.
+
+        The host writes its own log there, including why it could not install
+        the hook, and nothing else reads that pipe.
+        """
+        stream = getattr(proc, "stderr", None)
+        if stream is None:
+            return
+        try:
+            for line in stream:
+                if runoverlay_log:
+                    try:
+                        runoverlay_log.write(line)
+                        runoverlay_log.flush()
+                    except (OSError, ValueError):
+                        return
+        except (OSError, ValueError):
+            return
+
     def _start_ltk_patcher(self, host_exe: Path, overlay_dir: Path) -> Optional[dict]:
         """Start the LTK patcher host and begin scanning for the game.
 
@@ -464,9 +490,9 @@ class OverlayManager:
         "status <ts> <state> <msg>" / "error <ts> <msg>" events on stdout.
         It stays alive between sessions, so we stop it once the game exits.
 
-        The host is started through explorer.exe so the game's parent process
-        is on the DLL's allowlist (see patcher_launcher); when that fails it is
-        started directly, which the DLL refuses but still reports.
+        The host is started under a name on the DLL's allowlist so the game's
+        parent process passes its check (see patcher_launcher); when that fails
+        it is started directly, which the DLL refuses but still reports.
         """
         prefix = str(overlay_dir).rstrip("\\/") + "\\"
         commands = [
@@ -529,13 +555,13 @@ class OverlayManager:
         log.debug(f"[INJECT] Starting LTK patcher: {host_exe}")
         log.info(f"[INJECT] LTK patcher files: {describe_ltk_patcher_files(host_exe.parent)}")
         try:
-            proc = patcher_launcher.launch_ltk_patcher_host(host_exe)
+            proc = patcher_launcher.launch_ltk_patcher_host(host_exe, commands=commands)
         except Exception as e:
-            log.warning(f"[INJECT] Starting the LTK patcher through explorer.exe failed: {e}")
+            log.warning(f"[INJECT] Starting the LTK patcher under an allowed name failed: {e}")
             proc = None
         if proc is None:
             log.warning(
-                "[INJECT] Starting the LTK patcher through explorer.exe failed - "
+                "[INJECT] Starting the LTK patcher under an allowed name failed - "
                 "starting it directly; the DLL may refuse the overlay"
             )
         try:
@@ -549,16 +575,31 @@ class OverlayManager:
 
         reader = threading.Thread(target=read_events, args=(proc.stdout,), daemon=True)
         reader.start()
-        patcher_session = {"proc": proc, "session": session, "reader": reader, "log": runoverlay_log}
-        try:
-            for command in commands:
-                proc.stdin.write(command + "\n")
-            proc.stdin.flush()
-        except Exception as e:
-            log.error(f"[INJECT] Could not configure LTK patcher: {e}")
-            self._abort_ltk_patcher(patcher_session)
-            self._report_ltk_patcher_failure(f"could not start ({e})")
-            return None
+        stderr_reader = None
+        if getattr(proc, "stderr_is_pipe", False):
+            # A piped host writes its own log to stderr as it goes. Nothing
+            # drains it later, so it is copied to the session log now.
+            stderr_reader = threading.Thread(
+                target=self._copy_patcher_stderr, args=(proc, runoverlay_log), daemon=True
+            )
+            stderr_reader.start()
+        patcher_session = {
+            "proc": proc, "session": session, "reader": reader,
+            "stderr_reader": stderr_reader, "log": runoverlay_log,
+        }
+        if not isinstance(proc, PatcherHostProcess):
+            # A directly spawned host reads a real pipe, so the commands are
+            # written to it now. The renamed host already got them: a piped
+            # one when its input pipe was ready, a stand-in from its file.
+            try:
+                for command in commands:
+                    proc.stdin.write(command + "\n")
+                proc.stdin.flush()
+            except Exception as e:
+                log.error(f"[INJECT] Could not configure LTK patcher: {e}")
+                self._abort_ltk_patcher(patcher_session)
+                self._report_ltk_patcher_failure(f"could not start ({e})")
+                return None
 
         if self.process_manager:
             self.process_manager.current_overlay_process = proc
@@ -569,13 +610,18 @@ class OverlayManager:
         self._stop_ltk_patcher(patcher_session["proc"])
         if self.process_manager:
             self.process_manager.current_overlay_process = None
+        # The reader must be done before the session files are closed, or it
+        # would read a closed file and lose the host's last lines.
+        reader = patcher_session.get("reader")
+        if reader is not None:
+            reader.join(timeout=PROCESS_TERMINATE_TIMEOUT_S)
         if patcher_session["log"]:
             patcher_session["log"].close()
         self._cleanup_ltk_patcher(patcher_session["proc"])
 
     @staticmethod
     def _cleanup_ltk_patcher(proc):
-        """Remove what a host started through explorer.exe left behind."""
+        """Remove what a renamed host left behind."""
         if isinstance(proc, PatcherHostProcess):
             proc.cleanup()
 
@@ -760,9 +806,14 @@ class OverlayManager:
                 proc.drain_stderr()
             return
         try:
-            proc.stdin.write("stop\n")
-            proc.stdin.flush()
-            proc.stdin.close()
+            if isinstance(proc, PatcherHostProcess):
+                # The host read its command file to the end when it started,
+                # so it is stopped by killing it rather than by a line.
+                proc.request_stop()
+            else:
+                proc.stdin.write("stop\n")
+                proc.stdin.flush()
+                proc.stdin.close()
         except Exception:
             pass
         try:
@@ -831,26 +882,6 @@ class OverlayManager:
             log.debug("[INJECT] Wiped mods directory after mkoverlay")
         except Exception as e:
             log.debug(f"[INJECT] Could not wipe mods directory: {e}")
-
-    @staticmethod
-    def _hide_directory(path: Path):
-        """Set hidden + system attributes on a directory and its contents (Windows only)"""
-        import sys
-        if sys.platform != "win32":
-            return
-        try:
-            import ctypes
-            FILE_ATTRIBUTE_HIDDEN = 0x02
-            FILE_ATTRIBUTE_SYSTEM = 0x04
-            attrs = FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM
-            # Hide the directory itself
-            ctypes.windll.kernel32.SetFileAttributesW(str(path), attrs)
-            # Hide all contents recursively
-            for item in path.rglob('*'):
-                ctypes.windll.kernel32.SetFileAttributesW(str(item), attrs)
-            log.debug(f"[INJECT] Hidden overlay directory: {path}")
-        except Exception as e:
-            log.debug(f"[INJECT] Could not hide overlay directory: {e}")
 
     @staticmethod
     def _unhide_directory(path: Path):

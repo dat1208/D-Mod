@@ -164,6 +164,8 @@ backend/Pengu Loader/*.log.old
 # hashes are fetched at runtime, so they stay ignored.
 backend/injection/tools/ltk_patcher_host.exe
 backend/injection/tools/ltk_patcher_dll.dll
+backend/injection/tools/*.eol
+backend/injection/tools/*.old
 backend/injection/tools/hashes.game.txt
 backend/injection/tools/.hashes_state.json
 backend/config.ini

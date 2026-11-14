@@ -11,7 +11,9 @@ fail early instead of silently injecting nothing. A DLL past that date still
 works until League itself updates.
 """
 
+import base64
 import hashlib
+import json
 import struct
 import time
 from dataclasses import dataclass
@@ -19,6 +21,9 @@ from pathlib import Path
 from typing import Optional
 
 from config import GAME_EXECUTABLE_NAMES
+from utils.core.logging import get_logger
+
+log = get_logger()
 
 LTK_PATCHER_HOST = "ltk_patcher_host.exe"
 LTK_PATCHER_DLL = "ltk_patcher_dll.dll"
@@ -83,20 +88,25 @@ def read_dll_eol(dll_path: Path) -> Optional[int]:
     constant (``cmp eax, imm32; jbe``) right before referencing the
     "end of life reached" message. We locate that message, find the code that
     loads it, and read the nearest preceding comparison constant.
+
+    Newer builds compare against a value loaded from .rdata instead of an
+    immediate, which this cannot follow. For those, the delivery manifest that
+    LTK Manager writes beside the staged DLL states the same date, so it is
+    read as a fallback.
     """
     try:
         data = dll_path.read_bytes()
         sections = _parse_sections(data)
     except (OSError, ValueError, struct.error):
-        return None
+        return _read_eol_from_manifest(dll_path)
 
     msg_offset = data.find(_EOL_MESSAGE)
     if msg_offset < 0:
-        return None
+        return _read_eol_from_manifest(dll_path)
     msg_rva = _offset_to_rva(sections, msg_offset)
     text = next((s for s in sections if s[0] == b".text"), None)
     if msg_rva is None or text is None:
-        return None
+        return _read_eol_from_manifest(dll_path)
 
     _, text_rva, text_size, text_raw = text
     code = data[text_raw:text_raw + text_size]
@@ -111,7 +121,65 @@ def read_dll_eol(dll_path: Path) -> Optional[int]:
         eol = _find_eol_compare(code, i)
         if eol is not None:
             return eol
+    return _read_eol_from_manifest(dll_path)
+
+
+def _read_eol_from_manifest(dll_path: Path) -> Optional[int]:
+    """Return the EOL date that LTK Manager recorded for this staged DLL.
+
+    A staged DLL lives at ``<data>/patcher/<digest>/ltk_patcher_dll.dll`` and
+    the manifest beside it lists each channel's release, including ``eol``.
+    Only a manifest that names this DLL's digest is trusted, so an unrelated
+    or stale manifest cannot answer for a different file.
+    """
+    manifest = dll_path.parent.parent / "delivery.json"
+    if not manifest.is_file():
+        # A DLL copied out of the staging directory has no manifest beside it;
+        # the copy records the date it was taken with instead.
+        return _read_eol_sidecar(dll_path)
+    try:
+        digest = hashlib.sha256(dll_path.read_bytes()).hexdigest()
+        channels = json.loads(manifest.read_text(encoding="utf-8")).get("channels") or {}
+    except (OSError, ValueError):
+        return None
+
+    for entry in channels.values():
+        try:
+            envelope = entry["envelope"]["manifest"]
+            body = json.loads(base64.b64decode(envelope))
+            release = body["release"]
+        except (KeyError, TypeError, ValueError):
+            continue
+        if release.get("digest") == digest:
+            eol = release.get("eol")
+            return eol if isinstance(eol, int) else None
     return None
+
+
+# Beside a copied DLL: the end-of-life date it was installed with, so the
+# binary does not have to be parsed again on every start.
+EOL_SIDECAR_SUFFIX = ".eol"
+
+
+def _read_eol_sidecar(dll_path: Path) -> Optional[int]:
+    """Return the end-of-life date recorded beside a copied DLL."""
+    try:
+        text = dll_path.with_suffix(dll_path.suffix + EOL_SIDECAR_SUFFIX).read_text(encoding="utf-8")
+        return int(text.strip())
+    except (OSError, ValueError):
+        return None
+
+
+def write_eol_sidecar(dll_path: Path, eol: Optional[int]) -> None:
+    """Record the end-of-life date of a copied DLL beside it."""
+    sidecar = dll_path.with_suffix(dll_path.suffix + EOL_SIDECAR_SUFFIX)
+    try:
+        if eol is None:
+            sidecar.unlink(missing_ok=True)
+        else:
+            sidecar.write_text(str(eol), encoding="utf-8")
+    except OSError as e:
+        log.warning(f"Could not record the end-of-life date of {dll_path.name}: {e}")
 
 
 def read_game_build(game_dir: Path) -> Optional[int]:
