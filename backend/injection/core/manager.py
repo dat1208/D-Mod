@@ -49,6 +49,9 @@ class InjectionManager:
         self.injector = None  # Will be initialized lazily
         self._ltk_runtime = None
         self._ltk_archive_path = None
+        # Handle for the T-9s overlay build so repeated countdown ticks and
+        # monitor starts cannot spawn parallel builds for the same skin.
+        self._ltk_start_thread = None
         self.last_skin_name = None
         self.last_injection_time = 0.0
         self.injection_lock = threading.Lock()
@@ -161,10 +164,11 @@ class InjectionManager:
         champion = getattr(state, "locked_champ_id", None) or getattr(state, "hovered_champ_id", None)
         skin = getattr(state, "selected_chroma_id", None) or getattr(state, "last_hovered_skin_id", None)
         if not champion or not skin or int(skin) == int(champion) * 1000:
-            return
+            return False
         archive = self._ltk_selected_archive(f"skin_{skin}", int(champion),
             classic=is_classic_game_mode(getattr(state, "current_game_mode", None)))
         self._ltk_prepare(archive)
+        return True
 
     def start_patcher_in_background(self):
         """Start the LTK patcher when the loadout countdown begins.
@@ -175,9 +179,14 @@ class InjectionManager:
         lost the overlay. In the background: starting it must not hold up the
         countdown.
         """
-        if not self._initialized or self.injector is None:
-            return
-
+        # Deliberately NOT gated on self._initialized / self.injector: the
+        # ticker calls this at T-9s, which is before _ensure_initialized() has
+        # run on a cold start, so the old guard returned here and the whole
+        # countdown was wasted. The overlay was only built at T-0s, 3.3s after
+        # which the DLL attached and LTK logged "joined too late, not
+        # overlaying": the game had already streamed the champion WAD.
+        # _ltk_prepare_countdown resolves the archive from shared_state and
+        # does not touch self.injector, so it is safe to run this early.
         def start():
             try:
                 if self._ltk_enabled():
@@ -185,10 +194,18 @@ class InjectionManager:
             except Exception as e:
                 log.error("[LTK] Could not prepare patcher before game launch: %s", e)
 
-        threading.Thread(target=start, daemon=True, name="LTKPatcherStart").start()
+        pending = getattr(self, "_ltk_start_thread", None)
+        if pending is not None and pending.is_alive():
+            return  # a build is already in flight for this countdown
+        self._ltk_start_thread = threading.Thread(
+            target=start, daemon=True, name="LTKPatcherStart")
+        self._ltk_start_thread.start()
 
     def discard_early_patcher(self):
         """Nothing to discard: LTK owns its own patcher lifecycle."""
+        # Drop the in-flight handle so the next countdown starts a fresh build.
+        self._ltk_start_thread = None
+        self._ltk_archive_path = None
         return  # The cslol overlay host is no longer bundled.
 
     def _start_monitor(self):

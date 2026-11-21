@@ -96,23 +96,30 @@ class EarlyPatcherTests(unittest.TestCase):
 
 
 class MonitorStartsThePatcherTests(unittest.TestCase):
-    def test_the_patcher_starts_and_stops_with_the_game_monitor(self):
+    """The LTK overlay build is what must be running before the game launches."""
+
+    def test_the_build_starts_with_the_game_monitor(self):
         manager = InjectionManager.__new__(InjectionManager)
         manager.game_monitor = MagicMock()
-        manager.injector = MagicMock()
+        manager._ltk_enabled = lambda: True
+        manager._ltk_prepare_countdown = MagicMock()
 
         manager._start_monitor()
-        manager.injector.overlay_manager.start_patcher_early.assert_called_once()
-        manager._stop_monitor()
-        manager.injector.overlay_manager.discard_early_patcher.assert_called_once()
+        manager.game_monitor.start.assert_called_once()
+        manager._ltk_prepare_countdown.assert_called_once()
 
     def test_no_injector_yet(self):
+        """A cold start has no injector; the build still has to run, because
+        the countdown reaches T-0 long before one exists."""
         manager = InjectionManager.__new__(InjectionManager)
         manager.game_monitor = MagicMock()
         manager.injector = None
+        manager._ltk_enabled = lambda: True
+        manager._ltk_prepare_countdown = MagicMock()
         manager._start_monitor()
         manager._stop_monitor()
         manager.game_monitor.start.assert_called_once()
+        manager._ltk_prepare_countdown.assert_called_once()
 
 
 class _InlineThread:
@@ -121,6 +128,20 @@ class _InlineThread:
 
     def start(self):
         self.target()
+
+
+class _BlockingThread:
+    """A thread that stays alive, so is_alive() gates a second start."""
+
+    def __init__(self, target=None, **_):
+        self.target = target
+        self.started = 0
+
+    def start(self):
+        self.started += 1
+
+    def is_alive(self):
+        return True
 
 
 class CountdownStartsThePatcherTests(unittest.TestCase):
@@ -136,21 +157,54 @@ class CountdownStartsThePatcherTests(unittest.TestCase):
         self.addCleanup(threads.stop)
 
     def test_the_countdown_starts_the_patcher(self):
+        self.manager._ltk_enabled = lambda: True
+        self.manager._ltk_prepare_countdown = MagicMock()
         self.manager.start_patcher_in_background()
-        self.manager.injector.overlay_manager.start_patcher_early.assert_called_once()
+        self.manager._ltk_prepare_countdown.assert_called_once()
 
-    def test_a_failed_start_does_not_reach_the_countdown(self):
-        self.manager.injector.overlay_manager.start_patcher_early.side_effect = OSError('denied')
+    def test_a_failed_start_does_not_escape_the_thread(self):
+        self.manager._ltk_enabled = lambda: True
+        self.manager._ltk_prepare_countdown = MagicMock(side_effect=OSError('denied'))
+        self.manager.start_patcher_in_background()  # must not raise
+
+    def test_a_second_tick_does_not_start_a_parallel_build(self):
+        """The ticker re-arms once per second; two builds for one skin would
+        fight over the LTK staging directory."""
+        self.manager._ltk_enabled = lambda: True
+        build = MagicMock()
+        self.manager._ltk_prepare_countdown = build
+        threads = patch('injection.core.manager.threading',
+                        SimpleNamespace(Thread=_BlockingThread))
+        threads.start()
+        self.addCleanup(threads.stop)
         self.manager.start_patcher_in_background()
+        self.manager.start_patcher_in_background()
+        # Thread still alive from the first call: the second is a no-op.
+        self.assertEqual(self.manager._ltk_start_thread.started, 1)
 
-    def test_nothing_starts_before_the_injection_system_is_ready(self):
+    def test_the_countdown_starts_the_build_before_the_injector_exists(self):
+        """A cold start reaches the countdown before _ensure_initialized(), and
+        the old guard returned there: the overlay was then only built at T-0s,
+        ~3.3s after which the DLL attached and LTK logged "joined too late".
+        _ltk_prepare_countdown() resolves the archive from shared_state, so it
+        must run with self.injector still None."""
         self.manager._initialized = False
+        self.manager.injector = None
+        self.manager.shared_state = SimpleNamespace(
+            locked_champ_id=None, hovered_champ_id=None,
+            selected_chroma_id=None, last_hovered_skin_id=None)
+        self.manager._ltk_prepare_countdown = MagicMock()
         self.manager.start_patcher_in_background()
-        self.manager.injector.overlay_manager.start_patcher_early.assert_not_called()
+        self.manager._ltk_prepare_countdown.assert_called()
 
-    def test_a_countdown_without_injection_stops_it(self):
+    def test_a_countdown_without_injection_clears_the_build_handle(self):
+        """LTK owns its patcher, so discarding only drops D-Changer's handle:
+        the next countdown must be free to start a fresh build."""
+        stale = MagicMock()
+        self.manager._ltk_start_thread = stale
         self.manager.discard_early_patcher()
-        self.manager.injector.overlay_manager.discard_early_patcher.assert_called_once()
+        self.assertIsNone(self.manager._ltk_start_thread)
+        self.assertFalse(stale.stop.called)
 
 
 if __name__ == '__main__':

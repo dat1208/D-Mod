@@ -44,7 +44,10 @@ class CountdownPatcherTests(unittest.TestCase):
         self.ticker.injection_trigger.trigger_injection.side_effect = self._inject
         self.ticker.run()
 
-        self.manager.start_patcher_in_background.assert_called_once()
+        # Called at least once: the ticker re-arms every second until the
+        # skin is queued, so a countdown that lasts several ticks calls it
+        # several times by design.
+        self.manager.start_patcher_in_background.assert_called()
         self.manager.discard_early_patcher.assert_not_called()
 
     def test_a_countdown_without_a_skin_stops_it(self):

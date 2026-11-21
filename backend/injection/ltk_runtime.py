@@ -160,7 +160,7 @@ def _patcher_is_live(bridge: LtkBridge) -> bool:
         "patching", "scanning", "idle")
 
 
-def _connect() -> tuple[LtkBridge, bool]:
+def _connect(keep_manager_pids=()) -> tuple[LtkBridge, bool]:
     """Attach to a controlled LTK Manager, recovering from the usual blockers.
 
     Four things made skin selection a silent no-op before this: an ordinary
@@ -171,8 +171,10 @@ def _connect() -> tuple[LtkBridge, bool]:
     the launcher always starts from the same known-good state.
     """
     # Nothing below can trust the process list until the previous session's
-    # leftovers are gone, so this runs before any bridge is looked for.
-    preflight.sanitize()
+    # leftovers are gone, so this runs before any bridge is looked for. The
+    # caller passes the PID of a manager it already holds: killing that one
+    # would tear down the bridge this process is talking to.
+    preflight.sanitize(keep_manager_pids=keep_manager_pids)
 
     found = find_bridge()
     if found:
@@ -259,11 +261,20 @@ class LtkRuntime:
         self._active: Optional[str] = None
         self._scan_ready = False
         self._starting = False
+        # One countdown = one sanitise. The ticker re-arms prepare() every
+        # second; the stale-state sweep must not repeat (see prepare()).
+        self._sanitised_for_countdown = False
 
     def _bridge_ready(self) -> LtkBridge:
         if self._bridge and self._bridge.alive():
             return self._bridge
-        self._bridge, self._started_manager = _connect()
+        # Tell _connect which manager to keep: the reused one, whose PID the
+        # bridge reported on hello. Passing it stops sanitize() from killing
+        # the very manager the bridge is attached to.
+        keep = ()
+        if self._bridge is not None and getattr(self._bridge, "pid", None):
+            keep = (int(self._bridge.pid),)
+        self._bridge, self._started_manager = _connect(keep_manager_pids=keep)
         deadline = time.monotonic() + 20
         while True:
             try:
@@ -337,11 +348,21 @@ class LtkRuntime:
                 return
             self._starting = True
             try:
-                # Every selection starts from a known-good process set. Doing
-                # this here (not only in _connect) also covers the second and
-                # later selections of one app run, and it is what catches a
-                # patcher host orphaned when the previous game crashed.
-                preflight.sanitize()
+                # Sanitise only on the first prepare of one countdown.
+                #
+                # The loadout ticker re-arms this every second (T-9s .. T-2s),
+                # and sanitize() kills *every* ltk_patcher_host.exe plus every
+                # manager the bridge did not start. Run on each retry tick it
+                # killed the host the previous tick had just spawned, which LTK
+                # Manager recorded as "DLL Injection Failure verdict=
+                # PatcherDidNotRun" and which cost ~5s of rescanning before the
+                # next tick recovered. A countdown is one selection, so the
+                # leftovers of the previous session only need clearing once:
+                # that is what _ltk_sanitised_for marks, reset whenever the
+                # selection changes or the game ends.
+                if not self._sanitised_for_countdown:
+                    preflight.sanitize()
+                    self._sanitised_for_countdown = True
                 bridge = self._bridge_ready()
                 mod_id = self._activate(bridge, archive)
                 self._ensure_patcher(bridge, mod_id)
@@ -381,6 +402,9 @@ class LtkRuntime:
                     last += f" error={error}"
             time.sleep(0.5)
         self._scan_ready = False
+        # The sweep flag is deliberately NOT reset here: the failure is a dead
+        # or missing host, not a stale session, so the next retry tick must not
+        # re-kill what it is about to start.
         raise LtkRuntimeError(
             f"LTK patcher did not reach a scanning phase within {timeout:.0f}s "
             f"for mod {mod_id} ({last}); the skin would not have applied")
@@ -475,3 +499,6 @@ class LtkRuntime:
             self._user_disabled.clear()
             self._imported.clear()
             self._started_manager = False
+            # A new game resets the sweep flag so the next countdown still
+            # clears whatever the finished one left behind.
+            self._sanitised_for_countdown = False

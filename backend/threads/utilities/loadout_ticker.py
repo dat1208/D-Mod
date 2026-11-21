@@ -73,7 +73,12 @@ class LoadoutTicker(threading.Thread):
         if getattr(self.state, 'current_ticker', 0) != self.ticker_id:
             return
 
-        # The patcher must be scanning before the client launches the game
+        # The patcher must be scanning before the client launches the game.
+        # Building the overlay takes ~0.7s on first use and only ~0.2s once it
+        # is cached, so it has to happen inside the countdown instead of at
+        # T-0s. Retried on every tick until the skin is actually queued: at
+        # T-9s the hovered skin is often not resolved yet, and a single attempt
+        # would leave the build to happen too late again.
         if self.injection_manager:
             self.injection_manager.start_patcher_in_background()
 
@@ -88,6 +93,7 @@ class LoadoutTicker(threading.Thread):
         last_logged_name = object()
         error_logged = None
         injection_triggered = False
+        last_patcher_bucket = None
         
         # Continue loop only in ChampSelect/FINALIZATION
         while (not self.state.stop) and self.state.loadout_countdown_active and (self.state.current_ticker == self.ticker_id) and (self.state.phase in ["ChampSelect", "FINALIZATION"]):
@@ -172,6 +178,18 @@ class LoadoutTicker(threading.Thread):
 
             if remain_ms <= 0:
                 break
+            # Re-arm the overlay build once per second until the skin is
+            # queued. The first call at T-9s usually has no resolved skin yet,
+            # so without this the build still lands at T-0s and LTK reports
+            # "joined too late" after the champion WAD is already streamed.
+            bucket = int(remain_ms // 1000)
+            if bucket != last_patcher_bucket:
+                last_patcher_bucket = bucket
+                try:
+                    if self.injection_manager:
+                        self.injection_manager.start_patcher_in_background()
+                except Exception as e:
+                    error_logged = self._log_error_once("Patcher re-arm failed", e, error_logged)
             time.sleep(1.0 / float(self.hz))
 
         # No injection was triggered (no skin, refused, dodge): stop the patcher
