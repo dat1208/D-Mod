@@ -24,6 +24,7 @@ from typing import Optional
 import psutil
 
 from utils.core.logging import get_logger
+from . import preflight
 from .tools.bridge import LtkBridge, BridgeCommandError, BridgeUnavailable, find_bridge
 
 log = get_logger()
@@ -141,22 +142,55 @@ def _start_bridge() -> tuple[LtkBridge, bool]:
     return bridge, True
 
 
+def _patcher_is_live(bridge: LtkBridge) -> bool:
+    """Whether *bridge* already has a patcher that can overlay the next game.
+
+    A bridge that answers is not enough: the manager outlives its patcher, so a
+    session torn down after the game closed leaves a bridge whose patcher is
+    stopped. Reusing that bridge makes the next selection a silent no-op, which
+    is exactly the "no skin in game" symptom. Only a patcher that reports a
+    scanning/patching/idle phase is worth keeping.
+    """
+    try:
+        status = bridge.patcher_status().get("response", {}).get("value") or {}
+    except (BridgeUnavailable, BridgeCommandError) as exc:
+        log.debug("[LTK] Patcher status unreadable (%s); treating it as stopped", exc)
+        return False
+    return bool(status.get("running")) and str(status.get("phase") or "") in (
+        "patching", "scanning", "idle")
+
+
 def _connect() -> tuple[LtkBridge, bool]:
     """Attach to a controlled LTK Manager, recovering from the usual blockers.
 
-    Two things made skin selection a silent no-op before this: an ordinary
-    instance opened by hand (the bridge refuses to inject into it), and a
-    bridge left behind by a previous control session that is no longer
-    answering. Both are now cleared and the launch retried once.
+    Four things made skin selection a silent no-op before this: an ordinary
+    instance opened by hand (the bridge refuses to inject into it), a bridge
+    left behind by a previous control session that is no longer answering, an
+    orphaned patcher host still holding the port, and a surviving bridge whose
+    patcher had already stopped. Every one of them is now cleared up front, so
+    the launcher always starts from the same known-good state.
     """
+    # Nothing below can trust the process list until the previous session's
+    # leftovers are gone, so this runs before any bridge is looked for.
+    preflight.sanitize()
+
     found = find_bridge()
     if found:
-        # A bridge from a previous session may still hold the port. Use it if
-        # it answers, otherwise close that manager and start a controlled one.
+        # A bridge from a previous session may still hold the port. Keep it
+        # only when its patcher is alive: a bridge without a patcher still
+        # answers, and reusing one is the bug this guard exists for.
         try:
-            return LtkBridge.wait_for_bridge(timeout=5), False
+            candidate = LtkBridge.wait_for_bridge(timeout=5)
         except BridgeUnavailable:
+            candidate = None
             log.warning("[LTK] A stale bridge is holding the port; closing its manager")
+            _close_ordinary_managers()
+        if candidate is not None:
+            if _patcher_is_live(candidate):
+                log.info("[LTK] Reusing the running bridge; its patcher is alive")
+                return candidate, False
+            log.info("[LTK] Bridge answers but its patcher is not scanning; "
+                     "restarting LTK Manager from a clean state")
             _close_ordinary_managers()
 
     _close_ordinary_managers()
@@ -167,6 +201,7 @@ def _connect() -> tuple[LtkBridge, bool]:
         # launcher reads the process list right after it starts.
         log.warning("[LTK] First bridge start failed (%s); retrying once", exc)
         time.sleep(2.0)
+        preflight.sanitize()
         _close_ordinary_managers()
         return _start_bridge()
 
@@ -302,11 +337,53 @@ class LtkRuntime:
                 return
             self._starting = True
             try:
+                # Every selection starts from a known-good process set. Doing
+                # this here (not only in _connect) also covers the second and
+                # later selections of one app run, and it is what catches a
+                # patcher host orphaned when the previous game crashed.
+                preflight.sanitize()
                 bridge = self._bridge_ready()
                 mod_id = self._activate(bridge, archive)
                 self._ensure_patcher(bridge, mod_id)
+                self._confirm_patcher(bridge, mod_id)
             finally:
                 self._starting = False
+
+    def _confirm_patcher(self, bridge: LtkBridge, mod_id: str, *,
+                         timeout: float = 15.0) -> None:
+        """Wait until the patcher really reports a live scanning phase.
+
+        ``start_patcher`` only acknowledges the request; the manager starts the
+        host asynchronously and can fail afterwards (elevated League, a busy
+        previous host, an antivirus block). Without this wait the injection is
+        logged as complete while nothing is attached, and the game comes up
+        with the default skin.
+        """
+        deadline = time.monotonic() + timeout
+        last = "no status"
+        while time.monotonic() < deadline:
+            try:
+                status = bridge.patcher_status().get("response", {}).get("value") or {}
+            except (BridgeUnavailable, BridgeCommandError) as exc:
+                last = f"status unavailable ({exc})"
+            else:
+                running = bool(status.get("running"))
+                phase = str(status.get("phase") or "")
+                if running and phase in ("patching", "scanning", "idle"):
+                    self._scan_ready = True
+                    log.info("[LTK] Patcher confirmed %s for mod %s; "
+                             "the next game launch gets the skin",
+                             phase or "running", mod_id)
+                    return
+                last = f"running={running} phase={phase or 'none'}"
+                error = status.get("error") or status.get("lastError")
+                if error:
+                    last += f" error={error}"
+            time.sleep(0.5)
+        self._scan_ready = False
+        raise LtkRuntimeError(
+            f"LTK patcher did not reach a scanning phase within {timeout:.0f}s "
+            f"for mod {mod_id} ({last}); the skin would not have applied")
 
     def _ensure_patcher(self, bridge: LtkBridge, mod_id: str) -> None:
         """Start the patcher unless it is already scanning this library."""

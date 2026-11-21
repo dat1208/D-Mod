@@ -92,14 +92,27 @@ class PatcherSequence:
         dialog.pump_messages()
 
         from config import get_config_option
-        if (get_config_option("General", "injection_backend", "rose") or "rose").lower() == "ltk":
-            # The manager owns patcher delivery in this mode. Never install
-            # another host/DLL pair or start Rose's independent patcher.
-            dialog.set_status("LTK Manager handles the skin patcher.")
-            dialog.set_marquee(False)
-            dialog.pump_messages()
-            return True
         tools_dir = _tools_dir()
+
+        if (get_config_option("General", "injection_backend", "rose") or "rose").lower() == "ltk":
+            # LTK Manager owns patcher delivery only *after* it has delivered
+            # once. A machine that has never run it (fresh install, or one where
+            # the manager was uninstalled) has no host/DLL pair at all, and
+            # returning success here left the app claiming to be ready while
+            # every injection was impossible. Check the files before trusting
+            # the backend, and fall through to the normal fetch when they are
+            # missing.
+            missing = [name for name in ltk_patcher.PATCHER_FILES
+                       if not (tools_dir / name).is_file()]
+            if not missing:
+                dialog.set_status("LTK Manager handles the skin patcher.")
+                dialog.set_marquee(False)
+                dialog.pump_messages()
+                return True
+            updater_log.info(
+                "injection_backend=ltk but the patcher is missing (%s); "
+                "fetching it now", ", ".join(missing))
+
         try:
             game_dir = _game_dir()
             force = ltk_patcher.patcher_is_stale(tools_dir, game_dir)
