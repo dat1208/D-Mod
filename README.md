@@ -4,10 +4,21 @@ A League of Legends skin changer with a desktop UI. Built on the [Rose](https://
 
 This file is also the orientation document for anyone (human or model) picking up the codebase. Read it before reviewing or changing anything: it records the architecture, the startup order, the invariants that are easy to break, and the traps that have already been hit.
 
+## Important: read before installing
+
+D-Changer injects into the League of Legends process. Riot's Terms of Service
+prohibit third-party software that modifies the game, and **using this tool can
+get your account banned**. There is no guarantee of safety, and the authors
+accept no liability for account action. Use at your own risk, preferably on an
+account you can afford to lose.
+
+This build is not code-signed, so Windows SmartScreen will warn you the first
+time you run the installer.
+
 ## Install
 
-1. Download **`Dat-Rose_x.x.x_x64-setup.exe`** from [Releases](https://github.com/dat1208/Dat-Rose/releases/latest).
-2. Run it. Windows may warn about an unknown publisher (the app is not code-signed): choose **More info → Run anyway**.
+1. Download **`D-Changer_x.x.x_x64-setup.exe`** from [Releases](https://github.com/dat1208/Dat-Rose/releases/latest).
+2. Run it. Windows may warn about an unknown publisher (the app is not code-signed): choose **More info â†’ Run anyway**.
 3. Launch **D-Changer** from the Start menu and accept the UAC prompt. The app needs administrator rights to inject into the game.
 
 The engine fetches the LTK patcher and skin data on first launch; the UI shows the progress.
@@ -38,25 +49,25 @@ The app checks for a new release on startup and shows a banner when one is avail
 
 ```
 D-Changer/
-├── backend/                  Python engine (bundled by PyInstaller as a Tauri sidecar)
-│   ├── main/                 entry point, startup, main loop, cleanup
-│   ├── launcher/             startup checks + self-update
-│   ├── updater/              pinned third-party binaries + upstream version checks
-│   ├── injection/            the actual skin injection engine
-│   ├── lcu/                  League Client API client (lockfile, HTTP, websocket)
-│   ├── pengu/                websocket bridge to the in-client JS plugins
-│   ├── threads/              champion-select phases, locks, timers, injection trigger
-│   ├── profiles/             per-account skin profiles
-│   ├── state/                shared app status
-│   ├── utils/                paths, logging, download, atomic file helpers
-│   ├── api.py                local JSON API the Tauri UI polls
-│   ├── startup_progress.py   progress sink shared by launcher and API
-│   ├── config.py             constants (APP_NAME, APP_VERSION, repos, paths)
-│   ├── D-Changer.spec        PyInstaller build definition
-│   └── Pengu Loader/plugins/ JS plugins injected into the League client
-├── ui/                       Tauri + React front end
-├── scripts/build_dchanger.py end-to-end build (engine → UI → installer)
-└── .github/workflows/        ci.yml, release.yml
+â”œâ”€â”€ backend/                  Python engine (bundled by PyInstaller as a Tauri sidecar)
+â”‚   â”œâ”€â”€ main/                 entry point, startup, main loop, cleanup
+â”‚   â”œâ”€â”€ launcher/             startup checks + self-update
+â”‚   â”œâ”€â”€ updater/              pinned third-party binaries + upstream version checks
+â”‚   â”œâ”€â”€ injection/            the actual skin injection engine
+â”‚   â”œâ”€â”€ lcu/                  League Client API client (lockfile, HTTP, websocket)
+â”‚   â”œâ”€â”€ pengu/                websocket bridge to the in-client JS plugins
+â”‚   â”œâ”€â”€ threads/              champion-select phases, locks, timers, injection trigger
+â”‚   â”œâ”€â”€ profiles/             per-account skin profiles
+â”‚   â”œâ”€â”€ state/                shared app status
+â”‚   â”œâ”€â”€ utils/                paths, logging, download, atomic file helpers
+â”‚   â”œâ”€â”€ api.py                local JSON API the Tauri UI polls
+â”‚   â”œâ”€â”€ startup_progress.py   progress sink shared by launcher and API
+â”‚   â”œâ”€â”€ config.py             constants (APP_NAME, APP_VERSION, repos, paths)
+â”‚   â”œâ”€â”€ D-Changer.spec        PyInstaller build definition
+â”‚   â””â”€â”€ Pengu Loader/plugins/ JS plugins injected into the League client
+â”œâ”€â”€ ui/                       Tauri + React front end
+â”œâ”€â”€ scripts/build_dchanger.py end-to-end build (engine â†’ UI â†’ installer)
+â””â”€â”€ .github/workflows/        ci.yml, release.yml
 ```
 
 ## Two halves that must agree
@@ -157,7 +168,7 @@ The host/patcher pair speaks a line protocol; `rose_runoverlay_*.log` in the log
 `backend/utils/download/repo_downloader.py` downloads one ZIP of the whole [LeagueSkins](https://github.com/Alban1911/LeagueSkins) repo and extracts it, rather than looping per champion. It records the commit SHA so an unchanged repo is skipped.
 
 - Layout on disk: `<champion>/<skin>[/<chroma>]/<id>.zip|.fantome|.png`.
-- Cleanup after a sync removes only files that match that layout (`_is_library_file`). Anything else in the skins folder — a user's own archive, `failed_skins.json` — is kept. This is deliberate: an earlier version deleted user files.
+- Cleanup after a sync removes only files that match that layout (`_is_library_file`). Anything else in the skins folder â€” a user's own archive, `failed_skins.json` â€” is kept. This is deliberate: an earlier version deleted user files.
 - `hashes.game.txt` is written with `atomic_write` because injection threads read it while startup runs.
 
 ## Data and paths
@@ -167,9 +178,9 @@ The host/patcher pair speaks a line protocol; `rose_runoverlay_*.log` in the log
 | Path | Contents |
 |---|---|
 | `%LOCALAPPDATA%\D-Changer\` | user data root |
-| `…\skins\` | extracted skin library, `failed_skins.json` |
-| `…\profiles\` | per-account profiles |
-| `…\logs\` | `rose_*.log`, `log_updater_*.log`, `rose_runoverlay_*.log` |
+| `â€¦\skins\` | extracted skin library, `failed_skins.json` |
+| `â€¦\profiles\` | per-account profiles |
+| `â€¦\logs\` | `rose_*.log`, `log_updater_*.log`, `rose_runoverlay_*.log` |
 | `<install>\_internal\injection\tools\` | `mod-tools.exe`, `cslol-dll.dll`, `hashes.game.txt`, fetched patcher pair |
 
 `get_bundle_dir()` derives from `sys.executable`, **never** from `sys._MEIPASS`: in a PyInstaller onedir build `_MEIPASS` points at the builder's `_internal`, so an installed copy would look for its files on the build machine.
@@ -180,7 +191,7 @@ The host/patcher pair speaks a line protocol; `rose_runoverlay_*.log` in the log
 
 `backend/config.py` holds `APP_NAME`, `APP_VERSION`, repo names and `SELF_UPDATE_*`. `config.ini` in the install directory holds user settings and is preserved across updates.
 
-`APP_VERSION` in `config.py` is the **engine** version and is not the app version. The app version lives in `ui/package.json`, `ui/package-lock.json`, `ui/src-tauri/tauri.conf.json`, `ui/src-tauri/Cargo.toml` and `ui/src-tauri/Cargo.lock` — all five must match the release tag.
+`APP_VERSION` in `config.py` is the **engine** version and is not the app version. The app version lives in `ui/package.json`, `ui/package-lock.json`, `ui/src-tauri/tauri.conf.json`, `ui/src-tauri/Cargo.toml` and `ui/src-tauri/Cargo.lock` â€” all five must match the release tag.
 
 ---
 
@@ -235,7 +246,7 @@ Broad `except Exception` is a deliberate pattern in the launcher and download pa
 python scripts/build_dchanger.py
 ```
 
-Three stages: PyInstaller engine → Vite UI → Tauri bundle. The installer lands in `ui/src-tauri/target/release/bundle/nsis/`.
+Three stages: PyInstaller engine â†’ Vite UI â†’ Tauri bundle. The installer lands in `ui/src-tauri/target/release/bundle/nsis/`.
 
 Releasing is tag-driven (`.github/workflows/release.yml`):
 
@@ -266,6 +277,224 @@ These are real and deliberately not fixed yet:
 - **Dead downloader code.** `utils/download/skin_downloader.py` (the `SkinDownloader` class) and `smart_skin_downloader.py` are unused; only `download_skins_on_startup` in the former is live, and it delegates to `repo_downloader`. `hashes_downloader.py` is likewise only re-exported.
 - **`safe_extract` does not reject symlink entries.** Path traversal and absolute paths are blocked; a symlink entry would pass validation. Only relevant off Windows, where `zipfile` does not create symlinks by default.
 - **Patcher DLL end-of-life.** The pinned DLL expires; after that date a League update breaks injection until the pin is refreshed. The app now reports this in Diagnostics at startup (before an injection can fail), and `.github/workflows/ltk-patcher-watch.yml` opens an issue when a newer usable pair appears. Neither can extend the date: only a new LTK build can.
+
+## Troubleshooting & recovery (field notes)
+
+Hard-won knowledge from a full teardown and rebuild of a working install. Read this before "resetting" anything â€” most of it exists because a reset broke a working setup.
+
+### How Pengu Loader actually works here
+
+This is the **Rose fork of Pengu Loader (v2.0.0)**, not upstream Pengu. They inject differently, and mistaking one for the other costs hours.
+
+**It does NOT do any of these** (verified by reading `core.dll` and `Pengu Loader.exe` strings):
+
+- no `plugin-manifest.json` â€” the string does not exist in either binary
+- no `--remote-debugging-port` on the client command line
+- no `system.yaml` edits
+- no symlinks or junctions in the League folder
+- no `version.dll` / `winmm.dll` / `dxgi.dll` proxy file dropped next to `LeagueClient.exe`
+- no `PENGU_LOADER_HOME` environment variable
+
+**What it actually does.** `core.dll` is a proxy DLL loaded into the **CEF renderer process** of `LeagueClientUx.exe`, then it uses `WriteProcessMemory` + `CreateRemoteThread` to work inside that process and drives the client webview over **DevTools over WebSocket on `127.0.0.1:<port>`**. Control-flow strings found in `core.dll`:
+
+```
+HookRendererProcess / ===== CORE DLL LOADED ===== / DLL_PROCESS_ATTACH received
+Secondary proxy detected (winhttp dll) / winhttp dll not loaded, this proxy will be primary
+CEF version check FAILED for renderer process / but type=renderer not command line
+DevTools / 127.0.0.1: / WebSocket / /json / Chrome_WidgetWin_0
+```
+
+**Consequences that matter:**
+
+1. Nothing on disk changes on a successful install. `system.yaml` keeping its old timestamp is **correct**, not a bug. Do not chase it.
+2. Pengu must be running while the League client is open to inject. Installing with the client closed is fine; injecting is not.
+3. The "you want full League Client restart?" prompt is Pengu asking to restart the client so the DLL proxy can attach. Letting it restart the client is the expected flow.
+
+### Pengu Loader CLI reference (v2.0.0 Rose fork)
+
+Flags are **UTF-16** in the binary, so `grep`/ASCII scanning finds nothing. Extracted with `[Text.Encoding]::Unicode.GetString()`:
+
+| Flag | Meaning |
+|---|---|
+| `--install` / `/install` | activate: registers Pengu for the League install |
+| `--uninstall` / `/uninstall` | deactivate |
+| `--status` | report ACTIVE / INACTIVE |
+| `--set-league-path <path>` | set the League folder (must contain `LeagueClient.exe`) |
+| `--restart-client` | request a League client restart |
+| `--silent` / `-s` / `/silent` | no UI |
+| `--help` `-h` `/?` | usage |
+
+Two behaviours worth knowing:
+
+- `--status` prints `Pengu is currently ACTIVE.` / `INACTIVE` to stdout in **silent** mode. Without `--silent` it opens the WPF GUI window and prints nothing â€” which looks like a hang but is not. Always pass `--silent` when scripting, and capture stdout with `Start-Process -RedirectStandardOutput`.
+- `--install` **fails with exit code -1** and the message `Please close the running League Client and Loader menu before installing it.` if `LeagueClient.exe` is running. `RiotClientServices.exe` running does **not** block it.
+
+### The state files that must never be deleted
+
+`backend/Pengu Loader/config` and `backend/Pengu Loader/datastore` are **not caches**. They are the live activation state.
+
+`config` is a plain key/value file; the only key that matters is:
+
+```
+LeaguePath=D:\Games\Riot Games\League of Legends
+```
+
+Delete `config` and Pengu forgets which League install to attach to. Delete both and it reports INACTIVE with zero diagnostic output, and D-Changer's log keeps saying `Using existing external Pengu Loader with Rose plugins` â€” which reads like success but is not. The plugin panel silently disappears from champion select, no skin ID ever reaches the engine, and the game loads with the stock skin.
+
+Symptom chain when this is broken:
+
+```
+no skin selector in champ select
+  -> log: [INJECT] No skin ID available yet (last_hovered_skin_id=None, phase=FINALIZATION)
+  -> log: [INJECT] Final name variable: 'None'
+  -> game loads with stock skin
+```
+
+The engine blames the missing skin ID. The real cause is an INACTIVE loader two layers upstream. Check the loader first.
+
+### Recovery: re-activating Pengu Loader
+
+```powershell
+$pl  = 'C:\Users\ledot\OneDrive\Desktop\D-Changer\backend\Pengu Loader'
+$exe = Join-Path $pl 'Pengu Loader.exe'
+$lg  = 'D:\Games\Riot Games\League of Legends'
+
+# 1. League client MUST be fully closed. Check first â€” a leftover process fails the install.
+Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'LeagueClient*' }
+
+# 2. Delete the zero-byte state files left behind by a failed install
+Remove-Item (Join-Path $pl 'config'),(Join-Path $pl 'datastore') -Force -ErrorAction SilentlyContinue
+
+# 3. Set the path, then activate. Capture stdout â€” silent mode prints to it.
+Start-Process $exe -ArgumentList '--set-league-path',"`"$lg`"",'--silent' `
+  -RedirectStandardOutput C:\Users\ledot\pg1.txt -Wait -WindowStyle Hidden
+Get-Content C:\Users\ledot\pg1.txt     # expect: League of Legends path set to '...'.
+
+Start-Process $exe -ArgumentList '--install','--silent' `
+  -RedirectStandardOutput C:\Users\ledot\pg2.txt -Wait -WindowStyle Hidden
+Get-Content C:\Users\ledot\pg2.txt     # expect: Pengu has been activated.
+
+# 4. Verify the state file was written
+Get-Content (Join-Path $pl 'config')   # expect: LeaguePath=D:\Games\Riot Games\League of Legends
+```
+
+Then open the League client. Success is visible: the skin selector appears in champion select.
+
+A healthy activation looks exactly like this â€” `config` is ~50 bytes, one line, nothing else:
+
+```
+LeaguePath=D:\Games\Riot Games\League of Legends
+```
+
+### Component health check
+
+Run before blaming the injection engine. The whole path is four processes plus one registry key.
+
+| Component | How to verify | Healthy |
+|---|---|---|
+| LTK Manager | `Get-NetTCPConnection -LocalPort 46321 -State Listen` | PID listening |
+| LTK bridge token | `Get-ItemProperty HKCU:\Software\LTKBridge` | `ApiPort` + `ApiToken` present |
+| D-Changer UI | process `d-changer.exe` | running in **Session 1** |
+| D-Changer engine | process `dchanger-backend.exe` | running in **Session 1** |
+| Pengu Loader | `Pengu Loader.exe --status --silent` | `Pengu is currently ACTIVE.` |
+| Rose plugins | count dirs under `backend/Pengu Loader/plugins` | 10, each with `index.js` |
+| Skin library | `(Get-ChildItem $env:LOCALAPPDATA\D-Changer\skins -Recurse -File).Count` | ~9,200 files |
+
+**Session 0 vs Session 1 is a real failure mode.** This is a desktop app; anything in Session 0 cannot inject into or interact with a user's game. `SessionId` must be `1` for both D-Changer processes.
+
+### Reading a successful injection log
+
+`%LOCALAPPDATA%\D-Changer\logs\rose_*.log`. The happy path, in order:
+
+```
+INFO  | [Main] LCU reconnected after account swap - keeping Pengu Loader active...
+INFO  | [PLUGIN:LU-ChromaWheel] debug | {'message': 'injected CSS rules'}
+INFO  | [WS] Injection threshold refreshed for ChampSelect: 0.91s
+INFO  | [INJECT] on_champion_locked called for: champ_157 (id=157)
+DEBUG | [INJECT] Using base skin ID from state: 'skin_157087' (ID: 157087)
+INFO  | PREPARING INJECTION >>> SKIN_157087 <<<
+DEBUG | [INJECT] Found skin: C:\...\skins\157\157087\157087.fantome
+INFO  | [HISTORIC] Stored last injected ID 157087 for champion 157
+INFO  | INJECTION COMPLETED >>> SKIN_157087 <<<
+```
+
+The two lines that decide everything are `Using base skin ID from state: ...` (a plugin delivered a skin ID) and `INJECTION COMPLETED >>> SKIN_xxxxxx <<<`. If the first is missing, the problem is upstream in Pengu/plugins â€” not in the injection engine.
+
+### Resetting without destroying a working install
+
+A "clean reset" is a reasonable thing to want. It is also the fastest way to break a working setup, because most state in this app is load-bearing.
+
+**Safe to delete** â€” regenerated automatically, costs only a re-sync or a log history:
+
+```
+%LOCALAPPDATA%\D-Changer\state\
+%LOCALAPPDATA%\D-Changer\logs\
+%LOCALAPPDATA%\D-Changer\historic.json
+%APPDATA%\dev.leaguetoolkit.manager\profiles\      (patched overlay, rebuilt on demand)
+%APPDATA%\dev.leaguetoolkit.manager\mods\          (imported mods)
+%APPDATA%\dev.leaguetoolkit.manager\patcher\       (host cache)
+%APPDATA%\dev.leaguetoolkit.manager\library.json   (mod library index)
+%APPDATA%\dev.leaguetoolkit.manager\logs\, incidents\, telemetry\
+```
+
+**Never delete** â€” each of these breaks something that has no self-healing path:
+
+| Path | Why |
+|---|---|
+| `backend\Pengu Loader\config` | holds `LeaguePath`; losing it deactivates the loader |
+| `backend\Pengu Loader\datastore` | live plugin state |
+| `backend\Pengu Loader\plugins\` | the 10 `ROSE-*` plugins, each with `index.js` |
+| `backend\Pengu Loader\core.dll` | the injection proxy DLL itself |
+| `%LOCALAPPDATA%\D-Changer\skins\` | ~4 GB / ~9,200 files; re-downloading is slow |
+| `%LOCALAPPDATA%\D-Changer\classic\` | ~640 MB of base skins |
+| `_internal\injection\tools\` | `hashes.game.txt`, `ltk_patcher_host.exe`, `ltk_patcher_dll.dll` |
+| `C:\Program Files\LTK Manager Probe2\` | the mod backend; nothing else patches WADs |
+
+Note the asymmetry: `Profiles` (the per-account skin choices) and `historic.json` (last injected ID per champion) look similar but are different things. Deleting `historic.json` just loses the "last used skin" memory. Deleting the LTK `library.json` loses which mods are enabled.
+
+### The `injection/tools` warning is not fatal by itself
+
+The engine logs this when the console-injection path is used:
+
+```
+WARNING | Missing runtime injection dependencies: ['mod-tools.exe', 'cslol-dll.dll']
+WARNING | Please place the missing files in injection/tools/
+```
+
+Those two binaries are a **console/`mod-tools`-based fallback overlay path**. The production path goes through LTK Manager (`injection_backend = ltk` in `config.ini`) and only needs `ltk_patcher_host.exe` + `ltk_patcher_dll.dll` + `hashes.game.txt`. The warning is immediately followed by `Injection system initialized successfully` and injections work normally.
+
+Do not delete them again if they exist, and do not treat this warning as the cause of a missing skin. In this install the real cause was always upstream (Pengu inactive), never this.
+
+### Never modify the game's original WADs â€” and how to prove you didn't
+
+LTK patches through an **overlay** in `%APPDATA%\dev.leaguetoolkit.manager\profiles\`, never by writing into `Game\DATA\FINAL\`. Verify a game install is untouched with:
+
+```powershell
+Get-Item "$lg\Game\DATA\FINAL\Champions\Yasuo.wad.client" | Select-Object Length,LastWriteTime
+Get-Item "$lg\system.yaml"                                | Select-Object Length,LastWriteTime
+```
+
+Both must keep timestamps from **before** any modding session. If they moved, something wrote directly into the install and that is a real problem. In a healthy overlay-based setup these timestamps never change, which also means a reset never needs to repair game files.
+
+### Process and path reference for this machine
+
+| Item | Value |
+|---|---|
+| League install | `D:\Games\Riot Games\League of Legends` |
+| Game folder | `D:\Games\Riot Games\League of Legends\Game` |
+| D-Changer source | `C:\Users\ledot\OneDrive\Desktop\D-Changer` |
+| D-Changer exe | `...\ui\src-tauri\target\release\d-changer.exe` |
+| Pengu Loader | `...\backend\Pengu Loader\Pengu Loader.exe` |
+| LTK Manager | `C:\Program Files\LTK Manager Probe2\ltk-manager.exe` (v1.33.0) |
+| Bridge port | 46321 |
+| Engine log | `%LOCALAPPDATA%\D-Changer\logs\rose_*.log` |
+
+### Long-running and hanging commands
+
+Two things that appear to hang when driven over SSH, and what to do instead:
+
+- `Pengu Loader.exe` without `--silent` opens a GUI and never returns. Always add `--silent`, and redirect stdout to a file.
+- Recursive scans of `C:\Users\...\AppData` with `-Depth` can exceed a remote timeout. Scope them to a specific folder, or filter with `Where-Object` early.
 
 ## Disclaimer
 

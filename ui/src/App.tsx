@@ -130,7 +130,7 @@ export function App() {
       <aside className="sidebar">
         <div className="brand">
           <img className="mark" src={logo} alt="" />
-          <h1>Dat-Rose</h1>
+          <h1>D-Changer</h1>
         </div>
         <nav>
           {NAV.map(({ id, label, icon }) => (
@@ -163,7 +163,7 @@ export function App() {
       <div className="main">
         <header className="topbar">
           <div className="crumb">
-            <strong>Dat-Rose</strong>
+            <strong>D-Changer</strong>
             <span className="sep">/</span>
             <span>{t(NAV.find((n) => n.id === tab)?.label ?? "Dashboard")}</span>
           </div>

@@ -32,7 +32,7 @@ def perform_cleanup(state: SharedState, thread_manager: ThreadManager, tray_mana
         except Exception as e:
             log.warning(f"Error stopping the API server: {e}")
 
-    # A suspension outlives Rose: resume first, or closing during mkoverlay freezes the game for good
+    # A suspension outlives the app: resume first, or closing mid-injection freezes the game
     if injection_manager:
         try:
             injection_manager.resume_if_suspended()
@@ -44,15 +44,6 @@ def perform_cleanup(state: SharedState, thread_manager: ThreadManager, tray_mana
     except Exception as e:
         log.warning(f"Error deactivating Pengu Loader during cleanup: {e}")
 
-    # Kill all mod-tools.exe processes before shutting down
-    if injection_manager:
-        try:
-            log.info("Killing mod-tools.exe processes...")
-            injection_manager.kill_all_modtools_processes()
-            log_success(log, "Mod-tools processes killed", "")
-        except Exception as e:
-            log.warning(f"Error killing mod-tools processes: {e}")
-    
     # Stop system tray
     if tray_manager:
         try:

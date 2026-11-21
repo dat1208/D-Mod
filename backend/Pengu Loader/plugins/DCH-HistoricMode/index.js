@@ -1,16 +1,16 @@
 /**
- * @name ROSE-HistoricMode
- * @author Rose Team
+ * @name DCH-HistoricMode
+ * @author D-Changer
  * @description Historic mode for Pengu Loader
- * @link https://github.com/FlorentTariolle/Rose-HistoricMode
+ * @link https://github.com/FlorentTariolle/DCH-HistoricMode
  */
 (function initHistoricMode() {
-  const LOG_PREFIX = "[ROSE-HistoricMode]";
+  const LOG_PREFIX = "[DCH-HistoricMode]";
   const REWARDS_SELECTOR =
     ".skin-selection-item-information.loyalty-reward-icon--rewards";
   const HISTORIC_FLAG_ASSET_PATH = "historic_flag.png";
   const SHOW_SKIN_NAME_ID = "historic-popup-layer";
-  // Shared bridge (provided by ROSE-SkinMonitor)
+  // Shared bridge (provided by DCH-SkinMonitor)
   let bridge = null;
 
   function waitForBridge() {
@@ -19,7 +19,7 @@
       const interval = 50;
       let elapsed = 0;
       const check = () => {
-        if (window.__roseBridge) return resolve(window.__roseBridge);
+        if (window.__dchangerBridge) return resolve(window.__dchangerBridge);
         elapsed += interval;
         if (elapsed >= timeout) return reject(new Error("Bridge not available"));
         setTimeout(check, interval);
@@ -56,7 +56,7 @@
   let historicBaseSkinId = null;
 
   function getCurrentEffectiveSkinId() {
-    const skinState = window.__roseSkinState || {};
+    const skinState = window.__dchangerSkinState || {};
     const baseSkinId = Number(skinState.skinId);
     const chromaState = pythonChromaState || {};
     const selectedChromaId = Number(chromaState.selectedChromaId);
@@ -90,7 +90,7 @@
       return false;
     }
 
-    const currentBaseSkinId = Number((window.__roseSkinState || {}).skinId);
+    const currentBaseSkinId = Number((window.__dchangerSkinState || {}).skinId);
     return currentBaseSkinId === historicBaseSkinId;
   }
 
@@ -271,7 +271,7 @@
 
   // Inject CSS styles for lol-uikit-dialog-frame
   function injectDialogFrameStyles() {
-    const styleId = "rose-historic-mode-dialog-frame-styles";
+    const styleId = "dchanger-historic-mode-dialog-frame-styles";
     if (document.getElementById(styleId)) {
       return; // Styles already injected
     }

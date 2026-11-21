@@ -242,6 +242,41 @@ class LauncherTests(unittest.TestCase):
         spawn.assert_called_once_with(self.host)
         self.assertIs(session['proc'], direct)
 
+    def test_game_ending_before_dll_attaches_is_not_success(self):
+        from unittest.mock import MagicMock
+        proc = MagicMock()
+        proc.poll.return_value = None
+        proc.returncode = 0
+        reader = MagicMock()
+        with patch.object(self.overlay, '_stop_ltk_patcher'), \
+                patch.object(self.overlay, '_wipe_overlay_dir'), \
+                patch.object(self.overlay, '_log_runoverlay_tail'), \
+                patch.object(self.overlay, '_log_patcher_context'):
+            code = self.overlay._run_ltk_patcher(
+                {'proc': proc, 'session': {'state': 'injecting', 'error': None,
+                                          'eol': False, 'attached': False},
+                 'reader': reader, 'log': None},
+                self.overlay_dir, stop_callback=lambda: True,
+            )
+        self.assertEqual(code, 1)
+        self.assertIn('did not confirm attachment', self.report_issue.call_args.args[2])
+
+    def test_dll_attachment_allows_success(self):
+        from unittest.mock import MagicMock
+        proc = MagicMock()
+        proc.poll.return_value = None
+        proc.returncode = 0
+        with patch.object(self.overlay, '_stop_ltk_patcher'), \
+                patch.object(self.overlay, '_wipe_overlay_dir'):
+            code = self.overlay._run_ltk_patcher(
+                {'proc': proc, 'session': {'state': 'injected', 'error': None,
+                                          'eol': False, 'attached': True},
+                 'reader': MagicMock(), 'log': None},
+                self.overlay_dir, stop_callback=lambda: True,
+            )
+        self.assertEqual(code, 0)
+        self.report_issue.assert_not_called()
+
     def test_a_direct_spawn_that_fails_is_reported(self):
         with patch.object(patcher_launcher, 'launch_ltk_patcher_host', return_value=None), \
                 patch.object(patcher_launcher, 'spawn_ltk_patcher_host', side_effect=OSError('missing')):

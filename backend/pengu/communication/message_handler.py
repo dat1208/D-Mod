@@ -100,9 +100,9 @@ def _choose_mod_file() -> Optional[Path]:
         except Exception:
             pass
         selected = filedialog.askopenfilename(
-            title="Select a Rose mod file",
+            title="Select a D-Changer mod file",
             filetypes=[
-                ("Rose mods", "*.fantome *.zip *.modpkg"),
+                ("D-Changer mods", "*.fantome *.zip *.modpkg"),
                 ("Fantome mods", "*.fantome"),
                 ("ZIP mods", "*.zip"),
                 ("Mod packages", "*.modpkg"),

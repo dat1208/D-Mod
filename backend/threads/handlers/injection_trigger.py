@@ -174,6 +174,28 @@ class InjectionTrigger:
             ticker_id: Ticker ID for logging
             cname: Champion name (optional)
         """
+        # The cslol pipeline (mod-tools.exe) is not part of this build: its
+        # binaries and overlay host are unbundled and skin loading goes through
+        # LTK Manager (injection.ltk_runtime).
+        #
+        # This used to be a bare `return`, which silently disabled every skin
+        # selection: the guard compared the backend against "cslol-removed",
+        # and the shipped config says "ltk", so the check matched, this
+        # function exited, and LTK was never asked to patch anything. The
+        # handoff below is the one that actually reaches LTK, and it is what
+        # the owned-skin paths call further down.
+        try:
+            from config import get_config_option
+            _backend = (get_config_option("General", "injection_backend", "ltk") or "ltk").strip().lower()
+        except Exception:
+            _backend = "ltk"
+        if _backend == "cslol-removed":
+            log.info(
+                "[INJECT] trigger_injection skipped: the cslol pipeline is not part of this "
+                "build and no LTK backend is configured (backend=%s).", _backend,
+            )
+            return
+
         if not name:
             log.error("=" * LOG_SEPARATOR_WIDTH)
             log.error(f"INJECTION FAILED - NO SKIN ID AVAILABLE")

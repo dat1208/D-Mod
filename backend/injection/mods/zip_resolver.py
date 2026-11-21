@@ -62,9 +62,20 @@ class ZipResolver:
                 log.warning(f"[INJECT] No champion_id provided for skin ID: {skin_id}")
                 return None
             
-            # If chroma_id is provided, this is actually a chroma (Swiftplay case)
+            # If chroma_id is provided, this is actually a chroma (Swiftplay case).
+            # A "skin_<id>" whose chroma cannot be found is usually the skin's
+            # own default chroma (index 0): that chroma has no separate archive,
+            # it IS the base skin. Falling through to the base-skin lookup below
+            # is what makes those picks patch at all; returning the miss here
+            # left the user with an unpatched game for every default chroma.
             if chroma_id is not None:
-                return self._resolve_chroma_by_id(champion_id, chroma_id)
+                chroma = self._resolve_chroma_by_id(champion_id, chroma_id)
+                if chroma is not None:
+                    return chroma
+                log.debug(
+                    "[INJECT] Chroma %s has no archive of its own; using base skin %s",
+                    chroma_id, skin_id,
+                )
             
             # This is a base skin - look for {champion_id}/{skin_id}/{skin_id}.zip/.fantome
             skin_dir = self.zips_dir / str(champion_id) / str(skin_id)

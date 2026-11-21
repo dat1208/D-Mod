@@ -29,21 +29,38 @@ if Path('assets').is_dir() and os.listdir('assets'):
 else:
     print("[WARNING] Assets directory missing or empty")
 
-# Injection tools: binaries vs data files.
+# Injection tools: the cslol patcher used to live here (mod-tools.exe,
+# cslol-dll.dll). It is no longer bundled: skins load through LTK Manager, and
+# shipping the old patcher only kept a second, unreachable injection path in
+# the build. hashes.game.txt stays because the skin library and asset tools
+# still read the game hashtable.
+# The LTK patcher is NOT optional: startup refuses to continue without it,
+# and in a headless (windowed) build the refusal has no dialog to show, so the
+# engine hangs before the API ever reports engine_ready. Ship the two files.
 injection_binaries = [
-    'injection/tools/mod-tools.exe',
-    'injection/tools/cslol-dll.dll',
+    'injection/tools/ltk_patcher_host.exe',
+    'injection/tools/ltk_patcher_dll.dll',
 ]
-# The LTK patcher pair is deliberately not bundled: updater/ltk_patcher.py
-# fetches both files from a pinned LTK Manager commit and verifies them at
-# startup, so shipping a copy would only go stale (the DLL has an end-of-life
-# date) and could shadow the verified one.
 injection_data_files = [
     'injection/tools/hashes.game.txt',
-    'injection/tools/cslol-dll.stub',
+    'injection/tools/ltk_patcher_dll.dll.eol',
 ]
 
 binaries = []
+
+# LeagueToolFlop (LTF) bridge: ltk_launcher.exe + LeagueToolFlop.dll, the
+# third-party LibreToolkit driver (author: lol123love) that starts LTK Manager
+# with its DLL injected and exposes its authenticated loopback API. Nothing is
+# read from any other installation at build or run time. PyInstaller 6 stores
+# bundled files under _internal/, so ltk_runtime falls back to that directory.
+from pathlib import Path as _P1
+_ltk_bridge_dir = _P1('ltk_bridge')
+for _file in ('ltk_launcher.exe', 'LeagueToolFlop.dll'):
+    if (_ltk_bridge_dir / _file).is_file():
+        datas.append((str(_ltk_bridge_dir / _file), 'ltk_bridge'))
+    else:
+        print(f"[WARNING] Missing LTK bridge file: {_file}")
+
 for tool in injection_binaries:
     if Path(tool).exists():
         binaries.append((tool, 'injection/tools'))

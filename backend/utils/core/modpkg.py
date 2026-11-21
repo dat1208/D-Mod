@@ -251,7 +251,7 @@ def extract_modpkg(source: Union[str, Path], dest_dir: Union[str, Path]) -> None
     dest_dir = Path(dest_dir)
     with ModPackage.open(source) as package:
         if not package.wad_file_count:
-            raise ModpkgError("The .modpkg has no game files Rose can inject")
+            raise ModpkgError("The .modpkg has no game files D-Changer can inject")
         if package.optional_layers:
             log.info(
                 f"[MODPKG] {source.name}: skipping optional layers "

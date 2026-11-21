@@ -1,8 +1,7 @@
 /**
- * @name Rose-ChromaWheel
- * @author Rose Team
+ * @name DCH-ChromaWheel
+ * @author D-Changer
  * @description Chroma wheel for Pengu Loader
- * @link https://github.com/Alban1911/Rose-ChromaWheel
  */
 (function createFakeChromaButton() {
   const LOG_PREFIX = "[LU-ChromaButton]";
@@ -15,9 +14,9 @@
     ".skin-name-text", // Classic Champ Select
     ".skin-name", // Swiftplay lobby
   ];
-  const SPECIAL_BASE_SKIN_IDS = new Set([99007]); // 82054, 145070, 103085, 25080 removed - handled by ROSE-FormsWheel
-  const SPECIAL_CHROMA_SKIN_IDS = new Set([100001, 88888]); // 145071, 103086, 103087 removed - handled by ROSE-FormsWheel
-  // HOL skins handled by ROSE-FormsWheel (should not show ChromaWheel buttons)
+  const SPECIAL_BASE_SKIN_IDS = new Set([99007]); // 82054, 145070, 103085, 25080 removed - handled by DCH-FormsWheel
+  const SPECIAL_CHROMA_SKIN_IDS = new Set([100001, 88888]); // 145071, 103086, 103087 removed - handled by DCH-FormsWheel
+  // HOL skins handled by DCH-FormsWheel (should not show ChromaWheel buttons)
   const HOL_SKIN_IDS = new Set([145070, 145071, 103085, 103086, 103087]);
   const chromaParentMap = new Map();
   let skinMonitorState = null;
@@ -47,7 +46,7 @@
       .replace(/'/g, '&#039;');
   }
 
-  // Shared bridge API (provided by ROSE-Bridge plugin)
+  // Shared bridge API (provided by D-Changer-Bridge plugin)
   let bridge = null;
 
   function waitForBridge() {
@@ -56,7 +55,7 @@
       const interval = 50;
       let elapsed = 0;
       const check = () => {
-        if (window.__roseBridge) return resolve(window.__roseBridge);
+        if (window.__dchangerBridge) return resolve(window.__dchangerBridge);
         elapsed += interval;
         if (elapsed >= timeout) return reject(new Error("Bridge not available"));
         setTimeout(check, interval);
@@ -576,7 +575,7 @@
     );
 
     // Note: isMordekaiser and isMorgana are global functions defined elsewhere
-    // HOL chromas (Kai'Sa and Ahri) are now handled by ROSE-FormsWheel
+    // HOL chromas (Kai'Sa and Ahri) are now handled by DCH-FormsWheel
 
     // Helper to get buttonIconPath for Elementalist Lux forms
     const getButtonIconPathForElementalist = (chromaId) => {
@@ -587,22 +586,22 @@
     };
 
     // Helper to get buttonIconPath for Sahn Uzal Mordekaiser forms
-    // Note: Mordekaiser handling removed - now handled by ROSE-FormsWheel plugin
+    // Note: Mordekaiser handling removed - now handled by DCH-FormsWheel plugin
     const getButtonIconPathForMordekaiser = (chromaId) => {
       // This function is kept for compatibility but should not be used
-      // Mordekaiser is now handled by ROSE-FormsWheel
+      // Mordekaiser is now handled by DCH-FormsWheel
       return null;
     };
 
     // Helper to get buttonIconPath for Spirit Blossom Morgana forms
-    // Note: Morgana handling removed - now handled by ROSE-FormsWheel plugin
+    // Note: Morgana handling removed - now handled by DCH-FormsWheel plugin
     const getButtonIconPathForMorgana = (chromaId) => {
       // This function is kept for compatibility but should not be used
-      // Morgana is now handled by ROSE-FormsWheel
+      // Morgana is now handled by DCH-FormsWheel
       return null;
     };
 
-    // Helper to get buttonIconPath for HOL chromas - removed, handled by ROSE-FormsWheel
+    // Helper to get buttonIconPath for HOL chromas - removed, handled by DCH-FormsWheel
 
     // Update selectedChromaData based on Python state
     if (data.selectedChromaId && data.chromaColor) {
@@ -691,8 +690,8 @@
         log.debug(
           `[ChromaWheel] Elementalist Lux form detected: ${data.selectedChromaId}, buttonIconPath: ${selectedChromaData.buttonIconPath}`
         );
-        // Note: Mordekaiser (82054) and Spirit Blossom Morgana (25080) handling removed - now handled by ROSE-FormsWheel plugin
-        // HOL chromas (Kai'Sa and Ahri) are now handled by ROSE-FormsWheel - skip here
+        // Note: Mordekaiser (82054) and Spirit Blossom Morgana (25080) handling removed - now handled by DCH-FormsWheel plugin
+        // HOL chromas (Kai'Sa and Ahri) are now handled by DCH-FormsWheel - skip here
       } else {
         // Regular chroma - try to find from cache
         // Fallback: try to infer base skin ID from chroma ID (chroma IDs are typically baseSkinId + offset)
@@ -775,7 +774,7 @@
       ) {
         buttonIconPath = getElementalistButtonIconPath(data.currentSkinId);
       }
-      // Note: Mordekaiser (82054), Spirit Blossom Morgana (25080), and HOL chromas (Kai'Sa and Ahri) are now handled by ROSE-FormsWheel - skip here
+      // Note: Mordekaiser (82054), Spirit Blossom Morgana (25080), and HOL chromas (Kai'Sa and Ahri) are now handled by DCH-FormsWheel - skip here
 
       selectedChromaData = {
         id: data.currentSkinId || null,
@@ -1076,7 +1075,7 @@
     return forms;
   }
 
-  // HOL chroma functions removed - now handled by ROSE-FormsWheel
+  // HOL chroma functions removed - now handled by DCH-FormsWheel
 
   // Get Sahn Uzal Mordekaiser Forms data locally (same as Python's get_mordekaiser_forms)
   function getMordekaiserForms() {
@@ -1163,7 +1162,7 @@
     return path;
   }
 
-  // getHolButtonIconPath removed - now handled by ROSE-FormsWheel
+  // getHolButtonIconPath removed - now handled by DCH-FormsWheel
 
   function isSpecialBaseSkin(skinId) {
     return (
@@ -1949,7 +1948,7 @@
       return;
     }
 
-    // Skip HOL skins - they are handled by ROSE-FormsWheel
+    // Skip HOL skins - they are handled by DCH-FormsWheel
     if (currentSkinId && HOL_SKIN_IDS.has(currentSkinId)) {
       // Remove existing button if it exists (shouldn't be there, but clean up just in case)
       const existingButton = skinItem.querySelector(BUTTON_SELECTOR);
@@ -1964,7 +1963,7 @@
       skinData?.chromas?.length ||
       skinData?.childSkins?.length ||
       hasKnownChromas(currentSkinId)
-      // Note: Mordekaiser (82054), Spirit Blossom Morgana (25080), and HOL skins removed - handled by ROSE-FormsWheel
+      // Note: Mordekaiser (82054), Spirit Blossom Morgana (25080), and HOL skins removed - handled by DCH-FormsWheel
     );
 
     // Warm the champion cache as soon as the carousel exposes a skin. This
@@ -2435,11 +2434,11 @@
       return markSelectedChroma(allChromas, currentSkinId);
     }
 
-    // NOTE: Sahn Uzal Mordekaiser (82054) and Spirit Blossom Morgana (25080) removed - now handled by ROSE-FormsWheel plugin
+    // NOTE: Sahn Uzal Mordekaiser (82054) and Spirit Blossom Morgana (25080) removed - now handled by DCH-FormsWheel plugin
     // Previously these special cases handled Mordekaiser and Morgana forms, but they're now excluded from this plugin
 
-    // SPECIAL CASE: Risen Legend Kai'Sa and Ahri HoL skins are now handled by ROSE-FormsWheel
-    // (removed - handled by ROSE-FormsWheel)
+    // SPECIAL CASE: Risen Legend Kai'Sa and Ahri HoL skins are now handled by DCH-FormsWheel
+    // (removed - handled by DCH-FormsWheel)
 
     // First, check if chromas are directly in the skinData (like official client)
     // The official client gets chromas from the Ember component context
@@ -3150,7 +3149,7 @@
   function updateChromaPreview(chroma, chromaImage) {
     // Update preview image using chroma imagePath
     // For special skins (Elementalist Lux, Spirit Blossom Morgana, HOL chromas), use local preview paths
-    // Note: Mordekaiser removed - handled by ROSE-FormsWheel
+    // Note: Mordekaiser removed - handled by DCH-FormsWheel
     // For regular chromas, use LCU API paths
     const imagePath = chroma.imagePath;
 
@@ -3208,7 +3207,7 @@
   function updateChromaButtonColor() {
     // Update the chroma button's content background to match selected chroma
     // For Elementalist Lux forms and Spirit Blossom Morgana forms: use button icon image
-    // Note: Mordekaiser removed - handled by ROSE-FormsWheel
+    // Note: Mordekaiser removed - handled by DCH-FormsWheel
     // If default chroma (no color), keep the button-chroma.png image
     // If chroma has color, use that color as background
     // This works for both normal champ select and Swiftplay mode
@@ -3226,14 +3225,14 @@
       }
 
       // Check if this chroma has a button icon path (Elementalist Lux forms, Spirit Blossom Morgana forms, or HOL chromas)
-      // Note: Mordekaiser removed - handled by ROSE-FormsWheel
+      // Note: Mordekaiser removed - handled by DCH-FormsWheel
       if (
         selectedChromaData &&
         selectedChromaData.buttonIconPath &&
         selectedChromaData.buttonIconPath.startsWith("local-asset://")
       ) {
         // Elementalist Lux form, Spirit Blossom Morgana form, or HOL chroma - always request the icon to ensure it matches the selected chroma
-        // Note: Mordekaiser removed - handled by ROSE-FormsWheel
+        // Note: Mordekaiser removed - handled by DCH-FormsWheel
         // Track the last applied chroma ID on the button to detect when switching between chromas
         const lastAppliedChromaId = content.getAttribute("data-last-chroma-id");
         const chromaIdChanged =
@@ -3330,12 +3329,12 @@
 
       // Check if this is the default chroma (no color or name is "Default")
       // BUT: For Elementalist Lux, even the "Default" button should show its icon, not the generic default
-      // Note: Mordekaiser (82054), Spirit Blossom Morgana (25080), and HOL chromas are now handled by ROSE-FormsWheel
+      // Note: Mordekaiser (82054), Spirit Blossom Morgana (25080), and HOL chromas are now handled by DCH-FormsWheel
       const isElementalistLux =
         selectedChromaData &&
         (selectedChromaData.id === 99007 ||
           (selectedChromaData.id >= 99991 && selectedChromaData.id <= 99999));
-      // HOL chromas are now handled by ROSE-FormsWheel
+      // HOL chromas are now handled by DCH-FormsWheel
       const isDefault =
         !selectedChromaData ||
         (selectedChromaData.name === "Default" && !isElementalistLux) ||
@@ -3547,7 +3546,7 @@
   function toggleChromaPanel(buttonElement, skinItem) {
     log.info("[ChromaWheel] toggleChromaPanel called");
 
-    // Don't open panel for HOL skins - they are handled by ROSE-FormsWheel
+    // Don't open panel for HOL skins - they are handled by DCH-FormsWheel
     const currentSkinId = skinMonitorState?.skinId ?? null;
     if (currentSkinId && HOL_SKIN_IDS.has(currentSkinId)) {
       log.debug(`[ChromaWheel] Skipping panel for HOL skin ${currentSkinId} (handled by FormsWheel)`);
@@ -3845,8 +3844,8 @@
       return;
     }
 
-    if (window.__roseSkinState) {
-      skinMonitorState = window.__roseSkinState;
+    if (window.__dchangerSkinState) {
+      skinMonitorState = window.__dchangerSkinState;
       maybeInferChampionLockedFromSkinState(skinMonitorState);
 
       // Warm champion data up front so button visibility can recover even if

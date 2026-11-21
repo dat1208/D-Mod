@@ -6,7 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 export type Language = "en" | "vi";
 
-const STORAGE_KEY = "datrose_language";
+const STORAGE_KEY = "dchanger_language";
 
 // English is the key and the fallback; only the other languages are listed.
 const vi: Record<string, string> = {
@@ -27,7 +27,7 @@ const vi: Record<string, string> = {
   "Cannot reach the engine: {error}": "Không kết nối được engine: {error}",
   "Is the engine running? Check the Logs tab.": "Engine có đang chạy không? Xem tab Nhật ký.",
   "Waiting for the engine…": "Đang chờ engine…",
-  "Preparing Dat-Rose…": "Đang chuẩn bị Dat-Rose…",
+  "Preparing D-Changer…": "Đang chuẩn bị D-Changer…",
   Session: "Phiên",
   App: "Ứng dụng",
   Phase: "Giai đoạn",

@@ -40,23 +40,29 @@ _SESSION_FILE = get_state_dir() / 'pengu_session.json'
 _CONFIG_FILE = get_config_file_path()
 # The loader runs elevated: when Rose was elevated with another account's
 # credentials, its own LocalApplicationData isn't the desktop user's config.ini
-os.environ['ROSE_CONFIG_PATH'] = str(_CONFIG_FILE)
+os.environ['DCHANGER_CONFIG_PATH'] = str(_CONFIG_FILE)
 # core.dll finds its config next to the loader, or through ROSE_CONFIG_PATH.
 # A client restarted by the LCU does not inherit our environment, so it falls
 # back to the loader's own folder: without this file there, core.dll reads an
 # empty loaderpath and self-deletes, and no plugin (the skin panel included)
 # ever loads. Keep a copy where that fallback looks.
-_LEGACY_CONFIG_FILE = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'Rose' / 'config.ini'
+_LEGACY_CONFIG_FILE = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'D-Changer' / 'config.ini'
 
 _ACTIVE_FLAG = get_state_dir() / "pengu_active.flag"
 _LEGACY_PENGU_LOGS = (
-    "rose.log",
-    "rose.log.old",
+    "dchanger.log",
+    "dchanger.log.old",
     "crash.log",
 )
 _PLUGIN_ENTRYPOINT = "index.js"
 _PLUGIN_ENTRYPOINT_DISABLED = "index.js_"
 _PLUGIN_ENTRYPOINT_BUNDLED_BACKUP = "index.js.bundled"
+# Plugin folders shipped under the old product name. `copytree(dirs_exist_ok=True)`
+# never deletes extras, so a runtime directory upgraded from an older build keeps
+# the legacy `ROSE-*` copies next to the current `DCH-*` ones. Pengu Loader would
+# then load both sets: two settings panels, two skin monitors, and two writers for
+# every shared global. Purge them before the overlay sync.
+_LEGACY_PLUGIN_PREFIXES = ("ROSE-", "Rose-")
 
 
 def _remove_legacy_pengu_logs(pengu_dir: Path) -> None:
@@ -66,6 +72,52 @@ def _remove_legacy_pengu_logs(pengu_dir: Path) -> None:
             path.unlink(missing_ok=True)
         except OSError as exc:
             log.debug("Could not remove legacy Pengu log %s: %s", path, exc)
+
+
+def _purge_legacy_rose_plugins(pengu_dir: Path) -> None:
+    """
+    Delete plugin folders left behind by a pre-rename build.
+
+    The rename `ROSE-*` -> `DCH-*` only changed the bundled copy. An existing
+    runtime directory keeps the old folders because the overlay sync preserves
+    anything it does not overwrite, and Pengu Loader loads every folder in
+    `plugins`. Two copies of each plugin means duplicated UI, competing event
+    listeners and two owners of `window.DChangerI18n` / `__dchangerSkinState`.
+    """
+    plugins_dir = pengu_dir / "plugins"
+    if not plugins_dir.exists():
+        return
+
+    removed = []
+    try:
+        entries = list(plugins_dir.iterdir())
+    except OSError as exc:
+        log.debug("Could not list plugins directory for legacy purge: %s", exc)
+        return
+
+    for plugin_dir in entries:
+        try:
+            is_dir = plugin_dir.is_dir()
+        except OSError:
+            continue
+        if not is_dir:
+            continue
+        if not plugin_dir.name.startswith(_LEGACY_PLUGIN_PREFIXES):
+            continue
+        # Ignore anything that is not a real plugin folder, so a stray file or a
+        # user folder that merely starts with the same letters is left alone.
+        if not (plugin_dir / _PLUGIN_ENTRYPOINT).exists() and not (
+            plugin_dir / _PLUGIN_ENTRYPOINT_DISABLED
+        ).exists():
+            continue
+        try:
+            shutil.rmtree(plugin_dir)
+            removed.append(plugin_dir.name)
+        except OSError as exc:
+            log.warning("Could not remove legacy plugin folder %s: %s", plugin_dir.name, exc)
+
+    if removed:
+        log.info("Removed %d legacy plugin folder(s): %s", len(removed), ", ".join(sorted(removed)))
 
 
 def _sanitize_plugin_entrypoints(pengu_dir: Path) -> None:
@@ -303,6 +355,7 @@ def _resolve_pengu_dir() -> Path:
 
         # Remove logs from versions that used separate Rose/crash diagnostics.
         _remove_legacy_pengu_logs(runtime_dir)
+        _purge_legacy_rose_plugins(runtime_dir)
 
     except Exception as exc:
         log.error("Failed to copy Pengu Loader to runtime directory: %s", exc)
@@ -488,7 +541,7 @@ def _close_loader_menu() -> None:
         for proc in psutil.process_iter(['pid', 'name']):
             if proc.info.get('name') != PENGU_EXE.name or proc.info.get('pid') == current:
                 continue
-            log.info('Closing the open Pengu Loader window (PID %s) so Rose can toggle Pengu.', proc.info['pid'])
+            log.info('Closing the open Pengu Loader window (PID %s) so D-Changer can toggle Pengu.', proc.info['pid'])
             try:
                 proc.terminate()
                 proc.wait(timeout=3)
@@ -681,12 +734,12 @@ def _read_session() -> Optional[dict[str, object]]:
         return None
 
 
-def _write_session(was_active: bool, rose_activated: bool) -> bool:
+def _write_session(was_active: bool, app_activated: bool) -> bool:
     record = {
         'version': 1,
-        'rose_pid': os.getpid(),
+        'app_pid': os.getpid(),
         'pengu_was_active_before_rose': was_active,
-        'rose_activated_pengu': rose_activated,
+        'app_activated_pengu': app_activated,
         'activated_at': datetime.now().astimezone().isoformat(),
     }
     temporary = _SESSION_FILE.with_suffix(f'{_SESSION_FILE.suffix}.tmp')
@@ -708,7 +761,7 @@ def _clear_session() -> None:
 
 
 def _session_requires_deactivation(session: dict[str, object]) -> bool:
-    return bool(session.get('rose_activated_pengu')) and not bool(
+    return bool(session.get('app_activated_pengu')) and not bool(
         session.get('pengu_was_active_before_rose')
     )
 
@@ -830,8 +883,8 @@ def _external_pengu_with_rose_plugins() -> Optional[Path]:
         return None
     external = core.parent
     if ((external / 'Pengu Loader.exe').is_file()
-            and (external / 'plugins' / 'ROSE-SkinMonitor' / 'index.js').is_file()
-            and (external / 'plugins' / 'ROSE-UI' / 'index.js').is_file()):
+            and (external / 'plugins' / 'DCH-SkinMonitor' / 'index.js').is_file()
+            and (external / 'plugins' / 'DCH-UI' / 'index.js').is_file()):
         return external
     return None
 
@@ -850,10 +903,10 @@ def ensure_active_for_client() -> None:
         # Both editions share the loader window's mutex: don't close a window
         # the user has open, try again at the next client start
         if _process_running((PENGU_EXE.name,)):
-            log.info('No active Pengu Loader, but its window is open; Rose enables its loader at the next client start.')
+            log.info('No active Pengu Loader, but its window is open; D-Changer enables its loader at the next client start.')
             return
         from config import get_config_option
-        log.info('No active Pengu Loader; enabling the loader bundled with Rose.')
+        log.info('No active Pengu Loader; enabling the loader bundled with D-Changer.')
         activate_on_start(get_config_option('General', 'clientPath'))
 
 
@@ -885,7 +938,7 @@ def activate_on_start(league_path: Optional[str] = None) -> bool:
             log.info('Using existing external Pengu Loader with Rose plugins: %s', external)
             # This activation belongs to the user, so Rose must not remove it
             # on exit or replace its registry entry with the bundled loader.
-            return _write_session(was_active=True, rose_activated=False)
+            return _write_session(was_active=True, app_activated=False)
         if not _is_available():
             log.error('Pengu Loader executable is unavailable: %s', PENGU_EXE)
             return False
@@ -903,7 +956,7 @@ def activate_on_start(league_path: Optional[str] = None) -> bool:
 
         initial = get_status()
         if initial is PenguStatus.UNKNOWN:
-            log.error('Cannot start Rose Pengu integration because initial status is unknown.')
+            log.error('Cannot start D-Changer Pengu integration because initial status is unknown.')
             return False
         if league_path and not set_league_path(league_path):
             log.warning(
@@ -926,10 +979,10 @@ def activate_on_start(league_path: Optional[str] = None) -> bool:
         else:
             # --status only reports this loader's own core.dll as active, so an
             # earlier Rose left it on: it's Rose's, and goes when Rose quits
-            log.info("Rose's Pengu Loader was already active; adopting it (restart League: %s).", restart_needed)
+            log.info("D-Changer's Pengu Loader was already active; adopting it (restart League: %s).", restart_needed)
         _ensure_loader_config()
 
-        if not _write_session(was_active=False, rose_activated=True):
+        if not _write_session(was_active=False, app_activated=True):
             if activated_now:
                 log.error('Could not persist session state; reverting activation.')
                 deactivate()
@@ -940,7 +993,7 @@ def activate_on_start(league_path: Optional[str] = None) -> bool:
             _restart_pending = (frozenset() if restart_client()
                                 else _process_ids(('LeagueClientUx.exe',)))
             if _restart_pending:
-                log.info('Rose Loader enabled; client restart deferred until the client is ready.')
+                log.info('D-Changer Loader enabled; client restart deferred until the client is ready.')
         return True
 
 

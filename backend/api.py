@@ -158,12 +158,10 @@ def _updates(ctx: ApiContext) -> dict:
 
     ltk = sources.ltk_manager_release()
     pengu = sources.pengu_loader_release()
-    rose = sources.rose_release()
     return {
         "ltk_manager": ltk.tag if ltk else None,
         "league_skins_sha": sources.league_skins_sha(),
         "pengu_loader": pengu.tag if pengu else None,
-        "rose": rose.tag if rose else None,
     }
 
 

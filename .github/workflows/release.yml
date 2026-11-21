@@ -80,7 +80,7 @@ jobs:
           $url = "https://github.com/$env:REPO/releases/download/$env:RELEASE_TAG/$($exe.Name)"
           $json = [ordered]@{
             version   = $version
-            notes     = "Dat-Rose $version"
+            notes     = "D-Changer $version"
             pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
             platforms = [ordered]@{
               "windows-x86_64" = [ordered]@{

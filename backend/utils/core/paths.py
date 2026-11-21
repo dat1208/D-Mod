@@ -292,7 +292,7 @@ def get_bundle_dir() -> Path:
 
 
 def get_tools_dir() -> Path:
-    """The injection tools directory (mod-tools.exe, patcher, hashes)."""
+    """The injection tools directory (LTK patcher and game hashes)."""
     return get_bundle_dir() / "injection" / "tools"
 
 

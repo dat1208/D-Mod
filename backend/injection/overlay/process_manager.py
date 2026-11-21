@@ -92,17 +92,14 @@ class ProcessManager:
                     break
                 
                 try:
-                    # Skip if not mod-tools.exe or the LTK patcher host (avoid expensive cmdline check on unrelated processes)
+                    # Skip anything that is not the LTK patcher host (avoids per-process work)
                     name = proc.info.get('name')
-                    if name not in ('mod-tools.exe', LTK_PATCHER_HOST):
+                    if name != LTK_PATCHER_HOST:
                         continue
                     
-                    # Only fetch cmdline for mod-tools.exe processes with a timeout
                     try:
-                        # Create Process object for cmdline access
+                        # Create Process object for termination
                         p = psutil.Process(proc.info['pid'])
-                        # Use a short timeout on cmdline() to prevent hanging
-                        cmdline = p.cmdline() if name == 'mod-tools.exe' else None
                         
                         if name == LTK_PATCHER_HOST or (cmdline and any('runoverlay' in arg for arg in cmdline)):
                             log.info(f"[INJECT] Killing runoverlay process PID {proc.info['pid']}")
@@ -167,12 +164,12 @@ class ProcessManager:
                     break
                 
                 try:
-                    # Only kill mod-tools.exe and LTK patcher host processes
-                    if proc.info.get('name') not in ('mod-tools.exe', LTK_PATCHER_HOST):
+                    # Only kill the LTK patcher host
+                    if proc.info.get('name') != LTK_PATCHER_HOST:
                         continue
                     
-                    # Kill all mod-tools.exe processes regardless of command
-                    log.info(f"[INJECT] Killing mod-tools.exe process PID {proc.info['pid']}")
+                    # The LTK host is a single process; nothing to disambiguate
+                    log.info(f"[INJECT] Killing {LTK_PATCHER_HOST} process PID {proc.info['pid']}")
                     try:
                         # Create Process object
                         p = psutil.Process(proc.info['pid'])
@@ -201,12 +198,12 @@ class ProcessManager:
                     log.debug(f"[INJECT] Error processing PID {proc.info.get('pid', '?')}: {e}")
             
             if killed_count > 0:
-                log.info(f"[INJECT] Killed {killed_count} mod-tools.exe process(es)")
+                log.info(f"[INJECT] Killed {killed_count} {LTK_PATCHER_HOST} process(es)")
             else:
-                log.debug("[INJECT] No mod-tools.exe processes found to kill")
+                log.debug(f"[INJECT] No {LTK_PATCHER_HOST} processes found to kill")
                 
         except Exception as e:
-            log.warning(f"[INJECT] Failed to kill mod-tools.exe processes: {e}")
+            log.warning(f"[INJECT] Failed to kill {LTK_PATCHER_HOST} processes: {e}")
         
         # Also stop our tracked process if it exists
         self.stop_overlay_process()

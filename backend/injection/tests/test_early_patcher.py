@@ -67,6 +67,28 @@ class EarlyPatcherTests(unittest.TestCase):
         self.abort.assert_called_once()
         self.assertIsNone(self.overlay._take_early_patcher())
 
+    def test_expired_patcher_refreshes_before_early_host_starts(self):
+        events = []
+        self.host.parent.mkdir(parents=True, exist_ok=True)
+        self.host.touch()
+        with patch.object(overlay_manager, 'check_ltk_patcher', side_effect=[
+                SimpleNamespace(expired_for=lambda _: True),
+                SimpleNamespace(expired_for=lambda _: False)]), \
+                patch.object(overlay_manager.patcher_update, 'refresh_patcher',
+                             side_effect=lambda *_: events.append('refresh') or True):
+            self.start.side_effect = lambda *args: events.append('host') or self._fake_session(*args)
+            self.overlay.start_patcher_early()
+        self.assertEqual(events, ['refresh', 'host'])
+
+    def test_expired_patcher_never_starts_when_refresh_fails(self):
+        with patch.object(overlay_manager, 'check_ltk_patcher', return_value=
+                SimpleNamespace(expired_for=lambda _: True)), \
+                patch.object(overlay_manager.patcher_update, 'refresh_patcher', return_value=False), \
+                patch.object(self.overlay, '_report_ltk_patcher_eol') as report:
+            self.overlay.start_patcher_early()
+        self.start.assert_not_called()
+        report.assert_called_once()
+
     def test_nothing_starts_without_a_usable_patcher(self):
         self.host = None
         self.overlay.start_patcher_early()

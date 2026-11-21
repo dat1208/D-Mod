@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Tools management package
-Handles CSLOL tools detection and validation
+Handles injection tool detection and validation
 """
 
 from .tools_manager import ToolsManager

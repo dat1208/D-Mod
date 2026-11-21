@@ -75,7 +75,6 @@ def latest_commit_sha(repo: str, path: str = "", branch: str = "main", timeout: 
 LTK_MANAGER_REPO = "LeagueToolkit/ltk-manager"
 LEAGUE_SKINS_REPO = "Alban1911/LeagueSkins"
 PENGU_LOADER_REPO = "PenguLoader/PenguLoader"
-ROSE_REPO = "Alban1911/Rose"
 
 
 def ltk_manager_release() -> Release | None:
@@ -101,7 +100,3 @@ def league_skins_sha() -> str | None:
 def pengu_loader_release() -> Release | None:
     return latest_release(PENGU_LOADER_REPO)
 
-
-def rose_release() -> Release | None:
-    """Upstream Rose, tracked to notice new engine work worth porting."""
-    return latest_release(ROSE_REPO)

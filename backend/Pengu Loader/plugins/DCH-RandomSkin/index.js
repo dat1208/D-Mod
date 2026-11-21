@@ -1,17 +1,17 @@
 /**
- * @name Rose-RandomSkin
- * @author Rose Team
+ * @name DCH-RandomSkin
+ * @author D-Changer
  * @description Random skin for Pengu Loader
- * @link https://github.com/FlorentTariolle/Rose-RandomSkin
+ * @link https://github.com/FlorentTariolle/DCH-RandomSkin
  */
 (function initRandomSkin() {
-  const LOG_PREFIX = "[Rose-RandomSkin]";
+  const LOG_PREFIX = "[DCH-RandomSkin]";
   const REWARDS_SELECTOR = ".skin-selection-item-information.loyalty-reward-icon--rewards";
   const RANDOM_FLAG_ASSET_PATH = "random_flag.png";
   const DICE_DISABLED_ASSET_PATH = "dice-disabled.png";
   const DICE_ENABLED_ASSET_PATH = "dice-enabled.png";
 
-  // Shared bridge (provided by ROSE-SkinMonitor)
+  // Shared bridge (provided by DCH-SkinMonitor)
   let bridge = null;
 
   function waitForBridge() {
@@ -20,7 +20,7 @@
       const interval = 50;
       let elapsed = 0;
       const check = () => {
-        if (window.__roseBridge) return resolve(window.__roseBridge);
+        if (window.__dchangerBridge) return resolve(window.__dchangerBridge);
         elapsed += interval;
         if (elapsed >= timeout) return reject(new Error("Bridge not available"));
         setTimeout(check, interval);

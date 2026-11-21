@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 """
 Overlay Manager
-Handles overlay creation and execution using CSLOL tools
+Handles overlay creation and execution through the LTK patcher
 
 Security Notes:
     - subprocess calls use only internal paths (tools_dir, mods_dir, game_dir)
     - No user-controlled input is passed directly to subprocess commands
     - All paths are constructed from trusted internal configuration
-    - Commands only execute mod-tools.exe from the verified tools directory
+    - Command-line arguments are built only from verified tool paths
 """
 
 import re
@@ -58,7 +58,7 @@ DISK_SPACE_ERROR_MARKERS = (
 )
 
 # LTK patcher host settings (see ltk-manager patcher/host/protocol.rs).
-# Flag 4 = CSLOL_HOOK_OPT_OUT_AH_V1: Rose replaces skin0 with the selected
+# Flag 4 = HOOK_OPT_OUT_AH_V1: the loader replaces skin0 with the selected
 # skin, which the DLL's base-skin check rejects and then disables the whole
 # overlay; opting out downgrades that to a warning (same as LTK Manager's
 # "enforce skinhack scan" setting turned off). Log level 0x10 = Info.
@@ -243,7 +243,7 @@ class OverlayManager:
         tools = tools_manager.detect_tools()
         exe = tools.get("modtools")
         if not exe or not exe.exists():
-            log.error(f"[INJECTOR] Missing mod-tools.exe in {self.tools_dir}")
+            log.error(f"[INJECTOR] Missing ltk_patcher_host.exe in {self.tools_dir}")
             return 127
         
         # Use overlay directory (should already be clean from _clean_overlay_dir)
@@ -278,6 +278,10 @@ class OverlayManager:
             if patcher_update.refresh_patcher(ltk_host.parent, self.game_dir):
                 ltk_host = tools_manager.detect_ltk_patcher() or ltk_host
                 patcher = check_ltk_patcher(ltk_host.parent)
+            if patcher.expired_for(self.game_dir):
+                self.discard_early_patcher()
+                self._report_ltk_patcher_eol()
+                return 1
 
         # The DLL only overlays games launched after the scan started, so the
         # host must already be scanning when the game starts
@@ -435,10 +439,21 @@ class OverlayManager:
                 self._early_patcher = None
             from ..tools.tools_manager import ToolsManager
             ltk_host = ToolsManager(self.tools_dir).detect_ltk_patcher()
-            # No EOL gate here: the pinned DLL does not enforce its date, so a
-            # stale date must not stop the patcher from scanning for the game.
             if not ltk_host:
                 return
+            # Refresh before starting the early host. Refreshing only in
+            # mk_run_overlay is too late: the game may already be hooked by
+            # this session, which still holds the previous DLL in memory.
+            patcher = check_ltk_patcher(ltk_host.parent)
+            if patcher.expired_for(self.game_dir):
+                if not patcher_update.refresh_patcher(ltk_host.parent, self.game_dir):
+                    log.error("[INJECT] No supported LTK patcher for this game build")
+                    self._report_ltk_patcher_eol()
+                    return
+                ltk_host = ToolsManager(self.tools_dir).detect_ltk_patcher()
+                if not ltk_host or check_ltk_patcher(ltk_host.parent).expired_for(self.game_dir):
+                    self._report_ltk_patcher_eol()
+                    return
             overlay_dir = self.mods_dir.parent / "overlay"
             overlay_dir.mkdir(parents=True, exist_ok=True)
             if self.process_manager:
@@ -503,7 +518,7 @@ class OverlayManager:
         ]
 
         runoverlay_log = self._open_runoverlay_log()
-        session = {"state": None, "error": None, "eol": False}
+        session = {"state": None, "error": None, "eol": False, "attached": False}
 
         def read_events(pipe):
             try:
@@ -518,6 +533,8 @@ class OverlayManager:
                     if parts[0] == "status" and len(parts) >= 3:
                         session["state"] = parts[2]
                         message = parts[3] if len(parts) > 3 else ""
+                        if parts[2] == "injected" and "dll attached" in message.lower():
+                            session["attached"] = True
                         log.info(f"[INJECT] LTK patcher: {parts[2]} {message}".rstrip())
                         if parts[2] == "failed":
                             session["error"] = message or "injection failed"
@@ -689,7 +706,14 @@ class OverlayManager:
                     f"exited with code {proc.returncode} (0x{proc.returncode & 0xFFFFFFFF:08X})"
                 )
                 return proc.returncode
-            log.debug("[INJECT] LTK patcher session completed successfully")
+            if not session.get("attached", False):
+                reason = "DLL did not confirm attachment before the game ended"
+                log.error(f"[INJECT] LTK patcher failed: {reason}")
+                self._log_patcher_context(session, resumed_at)
+                self._log_runoverlay_tail(runoverlay_log)
+                self._report_ltk_patcher_failure(reason)
+                return 1
+            log.debug("[INJECT] LTK patcher session completed successfully (DLL attached)")
             return 0
         except Exception as e:
             log.error(f"[INJECT] LTK patcher error: {e}")
@@ -733,8 +757,8 @@ class OverlayManager:
     @staticmethod
     def _ltk_failure_hint(reason: str) -> str:
         """What the user can do about a patcher failure, by the cause it reported."""
-        logs = "Details are in rose_runoverlay_*.log."
-        report = "report it with rose_*.log and rose_runoverlay_*.log"
+        logs = "Details are in dchanger_runoverlay_*.log."
+        report = "report it with dchanger_*.log and dchanger_runoverlay_*.log"
         cause = ltk_failure_cause(reason)
         if cause == "hook":
             return ("The patcher could not attach to the game this time. Retry the next game; "
@@ -747,7 +771,7 @@ class OverlayManager:
                     "share the game with it: close it and retry. Otherwise try another skin or turn off custom mods; "
                     f"if every skin fails, update your LTK patcher files. {logs}")
         if cause == "start":
-            return ("Rose could not start ltk_patcher_host.exe. Check that it is still in Rose's tools folder: "
+            return ("D-Changer could not start ltk_patcher_host.exe. Check that it is still in the tools folder: "
                     f"an antivirus may have removed it. {logs}")
         if cause == "killed":
             return ("Another program closed the LTK patcher, most often an antivirus. "
@@ -835,7 +859,7 @@ class OverlayManager:
             logs_dir = get_user_data_dir() / "logs"
             logs_dir.mkdir(parents=True, exist_ok=True)
             timestamp = time.strftime("%d-%m-%Y_%H-%M-%S")
-            return open(logs_dir / f"rose_runoverlay_{timestamp}.log", "w+", encoding="utf-8", errors="replace")
+            return open(logs_dir / f"dchanger_runoverlay_{timestamp}.log", "w+", encoding="utf-8", errors="replace")
         except Exception as e:
             log.debug(f"[INJECT] Could not create runoverlay log: {e}")
             return None
@@ -913,10 +937,16 @@ class OverlayManager:
             return 127
         
         try:
+            tools = ToolsManager(self.tools_dir).detect_tools()
+            exe = tools.get("modtools")
+            if not exe or not exe.exists():
+                log.error(f"[INJECTOR] Missing ltk_patcher_host.exe in {self.tools_dir}")
+                return 127
+
             # Build mkoverlay command
             # Based on CSLOL source: flags.contains("--ignoreConflict") in main_mod_tools.cpp:332
             cmd = [
-                str(self.tools_dir / "mod-tools.exe"),
+                str(exe),
                 "mkoverlay",
                 str(self.mods_dir),
                 str(self.mods_dir.parent / "overlay"),

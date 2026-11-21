@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CSLOL Skin Injector
-Handles the actual skin injection using CSLOL tools
+Skin injector
+Handles skin injection through the LTK Manager backend
 """
 
 import sys
@@ -30,7 +30,7 @@ log = get_logger()
 
 
 class SkinInjector:
-    """CSLOL-based skin injector"""
+    """LTK-backed skin injector"""
     
     def __init__(self, tools_dir: Path = None, mods_dir: Path = None, zips_dir: Path = None, game_dir: Optional[Path] = None):
         # Use injection folder as base if paths not provided
@@ -39,9 +39,9 @@ class SkinInjector:
             # Resolve from the running executable via get_bundle_dir(): in onedir
             # builds sys._MEIPASS is the builder's _internal folder, so an
             # installed copy looked for its tools on the build machine and
-            # failed with "Missing mod-tools.exe".
+            # failed with "Missing ltk_patcher_host.exe".
             injection_dir = get_bundle_dir() / "injection"
-            if not (injection_dir / "tools" / "mod-tools.exe").exists():
+            if not (injection_dir / "tools" / "ltk_patcher_host.exe").exists():
                 log.warning(f"Injection directory not found, using default: {injection_dir}")
         else:
             # Running as Python script
@@ -87,7 +87,7 @@ class SkinInjector:
         # Store last injection timing data
         self.last_injection_timing = None
         
-        # Check for CSLOL tools
+        # Check for the LTK injection tool
         self.tools_manager.check_tools_available()
     
     def _resolve_zip(self, zip_arg: str, chroma_id: int = None, skin_name: str = None, champion_name: str = None, champion_id: int = None, classic: bool = False) -> Optional[Path]:
@@ -370,7 +370,7 @@ class SkinInjector:
         self.process_manager.kill_all_runoverlay_processes()
     
     def kill_all_modtools_processes(self):
-        """Kill all mod-tools.exe processes (for application shutdown)"""
+        """Kill all ltk_patcher_host.exe processes (for application shutdown)"""
         self.process_manager.kill_all_modtools_processes()
 
     def stop_injection_by_user(self):

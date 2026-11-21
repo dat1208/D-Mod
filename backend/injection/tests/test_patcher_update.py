@@ -1,3 +1,4 @@
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,10 +24,11 @@ class RefreshPatcherTests(unittest.TestCase):
 
     def _stage(self, name='digest', dll=b'new dll', host=b'new host'):
         """Put a DLL where LTK Manager would stage it."""
-        d = self.appdata / patcher_update.LTK_MANAGER_ID / 'patcher' / name
+        d = self.appdata / patcher_update.LTK_MANAGER_ID / 'patcher' / hashlib.sha256(dll).hexdigest()
         d.mkdir(parents=True)
         (d / LTK_PATCHER_DLL).write_bytes(dll)
         (d / LTK_PATCHER_HOST).write_bytes(host)
+        (d.parent / 'delivery.json').write_text('{}', encoding='utf-8')
         return d / LTK_PATCHER_DLL
 
     def _refresh(self, installed_eol, game_build, new_eol, staged=True, run_ok=True):
@@ -38,12 +40,33 @@ class RefreshPatcherTests(unittest.TestCase):
 
         with patch.dict('os.environ', {'APPDATA': str(self.appdata)}), \
                 patch.object(patcher_update, 'read_dll_eol', side_effect=fake_dll_eol), \
+                patch.object(patcher_update, '_require_valid_signature'), \
                 patch.object(patcher_update, 'read_game_build', return_value=game_build), \
                 patch.object(patcher_update, '_manager_exe', return_value=Path('ltk-manager.exe')), \
                 patch.object(patcher_update, '_run_manager_until_dll', side_effect=fake_run):
             if staged:
                 self._stage()
             return patcher_update.refresh_patcher(self.tools, self.game)
+
+    def test_rejects_staged_dll_without_manifest(self):
+        dll = self._stage()
+        (dll.parent.parent / 'delivery.json').unlink()
+        with self.assertRaises(patcher_update.PatcherUpdateError):
+            patcher_update._verify_staged_dll(dll)
+
+    def test_rejects_staged_dll_when_digest_does_not_match(self):
+        dll = self._stage()
+        dll.write_bytes(b'tampered')
+        with self.assertRaises(patcher_update.PatcherUpdateError):
+            patcher_update._verify_staged_dll(dll)
+
+    def test_rejects_unsigned_staged_dll(self):
+        dll = self._stage()
+        with patch.object(patcher_update, 'read_dll_eol', return_value=3000), \
+                patch.object(patcher_update, '_require_valid_signature',
+                             side_effect=patcher_update.PatcherUpdateError('NotSigned')):
+            with self.assertRaises(patcher_update.PatcherUpdateError):
+                patcher_update._verify_staged_dll(dll)
 
     def test_a_patcher_that_covers_the_game_is_left_alone(self):
         self.assertFalse(self._refresh(installed_eol=2000, game_build=1000, new_eol=3000))

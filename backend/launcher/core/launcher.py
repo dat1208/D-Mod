@@ -69,7 +69,7 @@ def _show_error(message: str) -> None:
         user32.MessageBoxW(
             None,
             message,
-            "Rose - Launcher",
+            "D-Changer - Launcher",
             MB_OK | MB_ICONERROR | MB_TOPMOST,
         )
         updater_log.error(f"Error dialog shown to user: {message}")
@@ -97,7 +97,7 @@ def _confirm_update(dialog: UpdateDialog, remote_version: str, local_version: st
     """Ask whether the user wants to download an available Rose update."""
     dialog.set_marquee(False)
     dialog.set_detail("Update available")
-    dialog.set_status(f"Rose {remote_version} is ready to install.")
+    dialog.set_status(f"D-Changer {remote_version} is ready to install.")
     dialog.pump_messages()
 
     message = (
@@ -109,7 +109,7 @@ def _confirm_update(dialog: UpdateDialog, remote_version: str, local_version: st
     result = user32.MessageBoxW(
         dialog.hwnd or None,
         message,
-        "Rose update available",
+        "D-Changer update available",
         MB_YESNO | MB_ICONINFORMATION | MB_DEFBUTTON2 | MB_TOPMOST,
     )
     accepted = result == IDYES

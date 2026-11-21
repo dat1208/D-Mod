@@ -1,8 +1,7 @@
 /**
- * @name ROSE-FormsWheel
- * @author Rose Team
- * @description Custom chroma wheel with asset-based buttons - Adapted from ROSE-ChromaWheel
- * @link https://github.com/Alban1911/Rose-FormsWheel
+ * @name DCH-FormsWheel
+ * @author D-Changer
+ * @description Custom chroma wheel with asset-based buttons - Adapted from DCH-ChromaWheel
  */
 (function createFormsWheel() {
   const LOG_PREFIX = "[FormsWheel]";
@@ -188,7 +187,7 @@
   let hoverButtonNormalUrl = null;
   let hoverButtonHoverUrl = null;
 
-  // Shared bridge API (provided by ROSE-BridgeInit)
+  // Shared bridge API (provided by D-Changer-BridgeInit)
   let bridge = null;
 
   function waitForBridge() {
@@ -197,7 +196,7 @@
       const interval = 50;
       let elapsed = 0;
       const check = () => {
-        if (window.__roseBridge) return resolve(window.__roseBridge);
+        if (window.__dchangerBridge) return resolve(window.__dchangerBridge);
         elapsed += interval;
         if (elapsed >= timeout) return reject(new Error("Bridge not available"));
         setTimeout(check, interval);
@@ -895,7 +894,7 @@
         log.debug(
           `[FormsWheel] Elementalist Lux form detected: ${data.selectedChromaId}, buttonIconPath: ${selectedChromaData.buttonIconPath}`
         );
-        // Note: Mordekaiser handling removed - now handled by ROSE-FormsWheel plugin
+        // Note: Mordekaiser handling removed - now handled by DCH-FormsWheel plugin
       } else if (isMorgana(data.selectedChromaId)) {
         // Spirit Blossom Morgana form - get data from local functions
         const baseFormId = 25080;
@@ -1370,7 +1369,7 @@
       let buttonIconPath = null;
       if (isElementalistLux(data.currentSkinId)) {
         buttonIconPath = getElementalistButtonIconPath(data.currentSkinId);
-        // Note: Mordekaiser handling removed - now handled by ROSE-FormsWheel plugin
+        // Note: Mordekaiser handling removed - now handled by DCH-FormsWheel plugin
       } else if (isMorgana(data.currentSkinId)) {
         buttonIconPath = getMorganaButtonIconPath(data.currentSkinId);
       } else if (isSett(data.currentSkinId)) {
@@ -4679,7 +4678,7 @@
   function updateChromaPreview(chroma, chromaImage) {
     // Update preview image using chroma imagePath
     // For special skins (Elementalist Lux, Spirit Blossom Morgana, HOL chromas), use local preview paths
-    // Note: Mordekaiser removed - handled by ROSE-FormsWheel
+    // Note: Mordekaiser removed - handled by DCH-FormsWheel
     // For regular chromas, use LCU API paths
     const imagePath = chroma.imagePath;
 
@@ -4737,7 +4736,7 @@
   function updateChromaButtonColor() {
     // Update the chroma button's content background to match selected chroma
     // For Elementalist Lux forms and Spirit Blossom Morgana forms: use button icon image
-    // Note: Mordekaiser removed - handled by ROSE-FormsWheel
+    // Note: Mordekaiser removed - handled by DCH-FormsWheel
     // If default chroma (no color), keep the button-chroma.png image
     // If chroma has color, use that color as background
     const buttons = document.querySelectorAll(BUTTON_SELECTOR);
@@ -4751,14 +4750,14 @@
       }
 
       // Check if this chroma has a button icon path (Elementalist Lux forms, Spirit Blossom Morgana forms, or HOL chromas)
-      // Note: Mordekaiser removed - handled by ROSE-FormsWheel
+      // Note: Mordekaiser removed - handled by DCH-FormsWheel
       if (
         selectedChromaData &&
         selectedChromaData.buttonIconPath &&
         selectedChromaData.buttonIconPath.startsWith("local-asset://")
       ) {
         // Elementalist Lux form, Spirit Blossom Morgana form, or HOL chroma - always request the icon to ensure it matches the selected chroma
-        // Note: Mordekaiser removed - handled by ROSE-FormsWheel
+        // Note: Mordekaiser removed - handled by DCH-FormsWheel
         // Track the last applied chroma ID on the button to detect when switching between chromas
         const lastAppliedChromaId = content.getAttribute("data-last-chroma-id");
         const chromaIdChanged =
@@ -4855,7 +4854,7 @@
 
       // Check if this is the default chroma (no color or name is "Default")
       // BUT: For Elementalist Lux, Spirit Blossom Morgana, and HOL chromas, even the "Default" button should show its icon, not the generic default
-      // Note: Mordekaiser removed - handled by ROSE-FormsWheel
+      // Note: Mordekaiser removed - handled by DCH-FormsWheel
       const isElementalistLux =
         selectedChromaData &&
         (selectedChromaData.id === 99007 ||
@@ -5304,8 +5303,8 @@
       return;
     }
 
-    if (window.__roseSkinState) {
-      skinMonitorState = window.__roseSkinState;
+    if (window.__dchangerSkinState) {
+      skinMonitorState = window.__dchangerSkinState;
 
       // Proactively fetch champion data if initial state has chromas
       if (

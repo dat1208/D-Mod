@@ -1,125 +1,17 @@
 /**
- * @name Rose-UI
- * @author Rose Team
+ * @name DCH-UI
+ * @author D-Changer
  * @description Interface unlocker for Pengu Loader
- * @link https://github.com/Alban1911/Rose-UI
  */
 (function enableLockedSkinPreview() {
-  const LOG_PREFIX = "[Rose-UI][skin-preview]";
+  const LOG_PREFIX = "[DCH-UI][skin-preview]";
   const INLINE_ID = "lpp-ui-unlock-skins-css-inline";
   const BORDER_CLASS = "lpp-skin-border";
   const HIDDEN_CLASS = "lpp-skin-hidden";
   const CHROMA_CONTAINER_CLASS = "lpp-chroma-container";
   const VISIBLE_OFFSETS = new Set([0, 1, 2, 3, 4]);
 
-  const DISCORD_INVITE_URL = "https://discord.com/invite/roseskins";
-  const ROSE_DISCORD_GUILD_ID = "1490473857075642621";
-  const ROSE_GITHUB_REPO_API_URL =
-    "https://api.github.com/repos/Alban1911/Rose";
-  const ROSE_GITHUB_BADGE_FALLBACK_URL =
-    "https://img.shields.io/badge/GitHub-Stars-32A832?style=flat&logo=github&logoColor=white";
-  let roseGithubStarsPromise = null;
 
-  // The welcome modal is rendered by Pengu's signed core module. Keep its
-  // links working without modifying the signed binary when external badge
-  // providers change or the embedded server ID becomes stale.
-  function getRoseGithubStars() {
-    if (roseGithubStarsPromise) return roseGithubStarsPromise;
-
-    roseGithubStarsPromise = fetch(ROSE_GITHUB_REPO_API_URL, {
-      cache: "no-store",
-    })
-      .then((response) => {
-        if (!response.ok) throw new Error("GitHub API request failed");
-        return response.json();
-      })
-      .then((repository) => {
-        const stars = Number(repository && repository.stargazers_count);
-        return Number.isSafeInteger(stars) && stars >= 0 ? stars : null;
-      })
-      .catch(() => null);
-
-    return roseGithubStarsPromise;
-  }
-
-  function getRoseGithubBadgeUrl(stars) {
-    const message = encodeURIComponent(stars + " stars");
-    return (
-      "https://img.shields.io/badge/GitHub-" +
-      message +
-      "-32A832?style=flat&logo=github&logoColor=white"
-    );
-  }
-
-  function fixPenguWelcomeBadges(shadowRoot) {
-    const badges = shadowRoot.querySelectorAll(
-      'img[src*="img.shields.io/discord/"], img[src*="img.shields.io/github/stars/"]'
-    );
-
-    badges.forEach((badge) => {
-      const source = badge.getAttribute("src") || "";
-
-      if (source.includes("/discord/")) {
-        const fixedSource = source.replace(
-          /\/discord\/\d+/,
-          "/discord/" + ROSE_DISCORD_GUILD_ID
-        );
-        if (fixedSource !== source) {
-          badge.setAttribute("src", fixedSource);
-        }
-        return;
-      }
-
-      if (source.includes("/github/stars/")) {
-        badge.setAttribute("src", ROSE_GITHUB_BADGE_FALLBACK_URL);
-        getRoseGithubStars().then((stars) => {
-          if (stars === null || !badge.isConnected) return;
-          badge.setAttribute("src", getRoseGithubBadgeUrl(stars));
-        });
-      }
-    });
-  }
-
-  function setupPenguWelcomeBadgeFix() {
-    let attachedHost = null;
-    let shadowObserver = null;
-
-    const attach = () => {
-      const host = document.getElementById("pengu-root");
-      const shadowRoot = host && host.shadowRoot;
-      if (!shadowRoot) return false;
-
-      if (attachedHost === host) {
-        fixPenguWelcomeBadges(shadowRoot);
-        return true;
-      }
-
-      if (shadowObserver) shadowObserver.disconnect();
-      attachedHost = host;
-      fixPenguWelcomeBadges(shadowRoot);
-      shadowObserver = new MutationObserver(() => {
-        fixPenguWelcomeBadges(shadowRoot);
-      });
-      shadowObserver.observe(shadowRoot, {
-        attributes: true,
-        attributeFilter: ["src"],
-        childList: true,
-        subtree: true,
-      });
-      return true;
-    };
-
-    if (attach()) return;
-
-    const documentObserver = new MutationObserver(() => {
-      if (attach()) documentObserver.disconnect();
-    });
-    documentObserver.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
-    setTimeout(() => documentObserver.disconnect(), 30000);
-  }
 
   function waitForBridge() {
     return new Promise((resolve, reject) => {
@@ -127,7 +19,7 @@
       const interval = 50;
       let elapsed = 0;
       const check = () => {
-        if (window.__roseBridge) return resolve(window.__roseBridge);
+        if (window.__dchangerBridge) return resolve(window.__dchangerBridge);
         elapsed += interval;
         if (elapsed >= timeout) return reject(new Error("Bridge not available"));
         setTimeout(check, interval);
@@ -141,10 +33,10 @@
 
   function handleSkipBaseSkin(payload) {
     lastBaseSkinSkipRequest = Date.now();
-    log.info("received base skin skip request from rose");
+    log.info("received base skin skip request from the client");
   }
 
-  // TODO Preferably move bridge communication logic and websocket interception to a separate Pengu plugin like ROSE-CORE,
+  // TODO Preferably move bridge communication logic and websocket interception to a separate Pengu plugin like D-Changer-CORE,
   // which provides a simple interface for adding custom observers for bridge and socket instead of duplicating this kind
   // of code over all the plugins; this will do for now though
   function interceptChampSelectWebsocket() {
@@ -178,7 +70,7 @@
                     // skip delegation
                     return;
                   } else {
-                    log.info("not skipping base skin: no request received from rose (in time)");
+                    log.info("not skipping base skin: no request received in time");
                   }
                 }
               }
@@ -197,23 +89,23 @@
   }
 
   const INLINE_RULES = `
-    lol-uikit-navigation-item.menu_item_Golden\\ Rose {
+    lol-uikit-navigation-item.menu_item_Golden\\ D-Changer {
       position: relative;
     }
 
-    /* Prevent active state styling for Golden Rose */
-    lol-uikit-navigation-item.menu_item_Golden\\ Rose .section.active::before,
-    lol-uikit-navigation-item.menu_item_Golden\\ Rose .section.active::after,
-    lol-uikit-navigation-item.menu_item_Golden\\ Rose .section.active,
-    lol-uikit-navigation-item.menu_item_Golden\\ Rose .section.active .section-glow,
-    lol-uikit-navigation-item.menu_item_Golden\\ Rose .section.active .section-glow-container {
+    /* Prevent active state styling for Golden D-Changer */
+    lol-uikit-navigation-item.menu_item_Golden\\ D-Changer .section.active::before,
+    lol-uikit-navigation-item.menu_item_Golden\\ D-Changer .section.active::after,
+    lol-uikit-navigation-item.menu_item_Golden\\ D-Changer .section.active,
+    lol-uikit-navigation-item.menu_item_Golden\\ D-Changer .section.active .section-glow,
+    lol-uikit-navigation-item.menu_item_Golden\\ D-Changer .section.active .section-glow-container {
       display: none !important;
       background: none !important;
       background-image: none !important;
     }
 
     /* Prevent hover state from showing navigation pointer */
-    lol-uikit-navigation-item.menu_item_Golden\\ Rose .section:hover::after {
+    lol-uikit-navigation-item.menu_item_Golden\\ D-Changer .section:hover::after {
       opacity: 0 !important;
       background: none !important;
       background-image: none !important;
@@ -350,7 +242,7 @@
       display: none !important;
       pointer-events: none !important;
     }
-    /* Rose owns chroma selection; keep the native client flyout closed. */
+    /* D-Changer owns chroma selection; keep the native client flyout closed. */
     .shared-skin-chroma-modal {
       display: none !important;
       pointer-events: none !important;
@@ -558,7 +450,7 @@
   // The splash the client itself set, even after we replaced it
   function clientSplash(img) {
     const src = img.getAttribute("src");
-    return img.dataset.roseBanner && src === img.dataset.roseBanner ? img.dataset.roseOriginal : src;
+    return img.dataset.dchangerBanner && src === img.dataset.dchangerBanner ? img.dataset.dchangerOriginal : src;
   }
 
   function syncSwiftplayBanners() {
@@ -578,15 +470,15 @@
 
     document.querySelectorAll('img[src*="_splash_centered_"]').forEach((img) => {
       const src = img.getAttribute("src");
-      if (src !== img.dataset.roseBanner) {
-        img.dataset.roseOriginal = src; // the client set a new splash
+      if (src !== img.dataset.dchangerBanner) {
+        img.dataset.dchangerOriginal = src; // the client set a new splash
       }
-      const picked = swiftplayBanners.get(img.dataset.roseOriginal);
+      const picked = swiftplayBanners.get(img.dataset.dchangerOriginal);
       if (picked && src !== picked) {
-        img.dataset.roseBanner = picked;
+        img.dataset.dchangerBanner = picked;
         img.setAttribute("src", picked);
-      } else if (!picked && img.dataset.roseBanner && src === img.dataset.roseBanner) {
-        img.setAttribute("src", img.dataset.roseOriginal);
+      } else if (!picked && img.dataset.dchangerBanner && src === img.dataset.dchangerBanner) {
+        img.setAttribute("src", img.dataset.dchangerOriginal);
       }
     });
   }
@@ -599,7 +491,7 @@
     document.querySelectorAll(".vng-age-rating-container").forEach((el) => el.remove());
   }
 
-  // Rift Classic shows the client's "Disabled" subtitle for unowned skins even after Rose unlocks them.
+  // Rift Classic shows the client's "Disabled" subtitle for unowned skins even after D-Changer unlocks them.
   const CLASSIC_ENABLED_LABELS = {
     pt: "Habilitada",
     es: "Habilitada",
@@ -728,7 +620,7 @@
     }
   }
 
-  function attachGoldenRoseListeners(navItem) {
+  function attachGoldenNavListeners(navItem) {
     // Check if listeners already attached
     if (navItem.dataset.lppDiscordAttached === "true") {
       return;
@@ -740,17 +632,17 @@
       (e) => {
         const lastActiveNavItem = document.querySelector(".main-nav-bar > * > lol-uikit-navigation-item[active]");
         if (lastActiveNavItem) {
-          lastActiveNavItem.setAttribute("roseLastActive", true);
+          lastActiveNavItem.setAttribute("dchangerLastActive", true);
         }
 
         // Dispatch event to open settings panel
-        const event = new CustomEvent("rose-open-settings", {
+        const event = new CustomEvent("dchanger-open-settings", {
           detail: { navItem: navItem },
           bubbles: true,
           cancelable: true,
         });
         window.dispatchEvent(event);
-        log.info("Dispatched rose-open-settings event from Golden Rose button");
+        log.info("Dispatched dchanger-open-settings event from Golden D-Changer button");
       },
       true
     ); // Use capture phase to intercept early
@@ -768,14 +660,14 @@
             e.preventDefault();
 
             // Dispatch event to open settings panel
-            const event = new CustomEvent("rose-open-settings", {
+            const event = new CustomEvent("dchanger-open-settings", {
               detail: { navItem: navItem },
               bubbles: true,
               cancelable: true,
             });
             window.dispatchEvent(event);
             log.info(
-              "Dispatched rose-open-settings event from Golden Rose section"
+              "Dispatched dchanger-open-settings event from Golden D-Changer section"
             );
 
             // Prevent active class
@@ -834,20 +726,20 @@
     navItem.dataset.lppDiscordAttached = "true";
   }
 
-  function injectGoldenRoseNavItem() {
+  function injectGoldenNavItem() {
     const rightNavMenu = document.querySelector(".right-nav-menu");
     if (!rightNavMenu) {
       return false;
     }
 
-    // Check if Golden Rose item already exists by checking for the golden_rose.png image
+    // Check if Golden D-Changer item already exists by checking for the golden_rose.png image
     const existingItem = rightNavMenu.querySelector(
       'lol-uikit-navigation-item .menu-item-icon[style*="golden_rose.png"]'
     );
     if (existingItem) {
       const navItem = existingItem.closest("lol-uikit-navigation-item");
       if (navItem) {
-        attachGoldenRoseListeners(navItem);
+        attachGoldenNavListeners(navItem);
       }
       return true;
     }
@@ -856,7 +748,7 @@
     const navItem = document.createElement("lol-uikit-navigation-item");
     navItem.id = `ember${Date.now()}`;
     navItem.className =
-      "main-navigation-menu-item menu_item_Golden Rose ember-view";
+      "main-navigation-menu-item menu_item_Golden D-Changer ember-view";
 
     // Create icon wrapper structure
     const iconWrapper = document.createElement("div");
@@ -867,7 +759,7 @@
 
     const icon = document.createElement("div");
     icon.className = "menu-item-icon";
-    icon.style.webkitMaskImage = `url(http://127.0.0.1:${window.__roseBridge ? window.__roseBridge.port : 50000}/asset/golden_rose.png)`;
+    icon.style.webkitMaskImage = `url(http://127.0.0.1:${window.__dchangerBridge ? window.__dchangerBridge.port : 50000}/asset/golden_rose.png)`;
 
     iconWrapper.appendChild(glow);
     iconWrapper.appendChild(icon);
@@ -881,27 +773,27 @@
       rightNavMenu.appendChild(navItem);
     }
 
-    // Add separator after the Golden Rose item
+    // Add separator after the Golden D-Changer item
     const separator = document.createElement("div");
     separator.className = "right-nav-vertical-rule";
     rightNavMenu.insertBefore(separator, navItem.nextSibling);
 
     // Attach Discord click listeners
-    attachGoldenRoseListeners(navItem);
+    attachGoldenNavListeners(navItem);
 
-    log.info("Golden Rose navigation item injected");
+    log.info("Golden D-Changer navigation item injected");
     return true;
   }
 
   function setupNavObserver() {
     // Try to inject immediately
-    if (injectGoldenRoseNavItem()) {
+    if (injectGoldenNavItem()) {
       return;
     }
 
     // If not found, observe for nav menu creation
     const observer = new MutationObserver(() => {
-      if (injectGoldenRoseNavItem()) {
+      if (injectGoldenNavItem()) {
         observer.disconnect();
       }
     });
@@ -913,7 +805,7 @@
 
     // Also check periodically as a safety net
     const intervalId = setInterval(() => {
-      if (injectGoldenRoseNavItem()) {
+      if (injectGoldenNavItem()) {
         clearInterval(intervalId);
         observer.disconnect();
       }
@@ -996,8 +888,7 @@
       // Subscribe to skip-base-skin messages from the shared bridge
       bridge.subscribe("skip-base-skin", handleSkipBaseSkin);
       bridge.subscribe("phase-change", handlePhaseChangeFromPython);
-      setupPenguWelcomeBadgeFix();
-
+    
       interceptChampSelectWebsocket();
       loadClassicEnabledLabel();
       injectInlineRules();

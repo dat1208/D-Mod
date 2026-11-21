@@ -49,7 +49,7 @@ export const Dashboard = memo(function Dashboard({ status, error }: { status: St
     return (
       <section>
         <h2>{t("Dashboard")}</h2>
-        <p className="subtitle">{t("Preparing Dat-Rose…")}</p>
+        <p className="subtitle">{t("Preparing D-Changer…")}</p>
         <div className="card">
           <h3>{startup.message}</h3>
           {startup.detail && <p className="muted">{startup.detail}</p>}

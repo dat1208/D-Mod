@@ -1,4 +1,4 @@
-// Dat-Rose desktop shell.
+// D-Changer desktop shell.
 //
 // Hide the console window in release builds: without this, the windowed app
 // still opens a black console behind it.
@@ -10,7 +10,7 @@
 //
 // Closing the window (X) only hides it to the tray: the engine keeps running so
 // the user can reopen the UI without a second UAC prompt. A real exit goes
-// through the tray menu's "Thoát" item, which stops the engine.
+// through the tray menu's "ThoÃ¡t" item, which stops the engine.
 //
 // The engine injects into the game and installs the LTK patcher, so it must run
 // elevated. The shell itself stays unelevated and launches the engine through
@@ -260,12 +260,12 @@ fn main() {
 
             // Tray icon: left click restores the window, menu offers the same
             // plus a real Quit (the X button only hides).
-            let show_item = MenuItem::with_id(app, "show", "Mở Dat-Rose", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Thoát", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "show", "Open D-Changer", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
             let mut tray = TrayIconBuilder::with_id("main-tray")
-                .tooltip("Dat-Rose")
+                .tooltip("D-Changer")
                 .menu(&menu)
                 // Left click restores; the menu stays on right click.
                 .show_menu_on_left_click(false)
@@ -314,7 +314,7 @@ fn main() {
             }
         })
         .build(tauri::generate_context!())
-        .expect("error while building the Dat-Rose window")
+        .expect("error while building the D-Changer window")
         .run(|app_handle, event| {
             if let RunEvent::Exit = event {
                 shutdown_engine(app_handle);

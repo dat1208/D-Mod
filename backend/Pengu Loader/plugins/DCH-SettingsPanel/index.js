@@ -1,25 +1,22 @@
 /**
- * @name Rose-SettingsPanel
- * @author Rose Team
- * @description Settings panel for Rose
- * @link https://github.com/FlorentTariolle/ROSE-SettingsPanel
+ * @name DCH-SettingsPanel
+ * @author D-Changer
+ * @description Settings panel for D-Changer
+ * @link https://github.com/FlorentTariolle/DCH-SettingsPanel
  */
 (function initSettingsPanel() {
-  const LOG_PREFIX = "[Rose-SettingsPanel]";
-  const DISCORD_INVITE_URL = "https://discord.com/invite/roseskins";
-  const KOFI_URL = "https://ko-fi.com/roseapp";
-  const GITHUB_URL = "https://github.com/Alban1911/Rose";
+  const LOG_PREFIX = "[DCH-SettingsPanel]";
 
-  const PANEL_ID = "rose-settings-panel";
-  const FLYOUT_ID = "rose-settings-flyout";
+  const PANEL_ID = "dchanger-settings-panel";
+  const FLYOUT_ID = "dchanger-settings-flyout";
 
-  // Rose's menu language (ROSE-I18n); English until it has loaded
+  // D-Changer's menu language (DCH-I18n); English until it has loaded
   const t = (text, vars) =>
-    window.RoseI18n
-      ? window.RoseI18n.t(text, vars)
+    window.DChangerI18n
+      ? window.DChangerI18n.t(text, vars)
       : text.replace(/\{(\w+)\}/g, (m, k) => (vars && k in vars ? String(vars[k]) : m));
-  // A finished English text from Rose (error message...), translated when it is a known one
-  const tAny = (text) => (window.RoseI18n ? window.RoseI18n.tAny(text) : text);
+  // A finished English text from D-Changer (error message...), translated when it is a known one
+  const tAny = (text) => (window.DChangerI18n ? window.DChangerI18n.tAny(text) : text);
 
   // Codes the language picker shows, like the flags of a language menu
   const LANGUAGE_BADGES = {
@@ -52,7 +49,7 @@
       const interval = 50;
       let elapsed = 0;
       const check = () => {
-        if (window.__roseBridge) return resolve(window.__roseBridge);
+        if (window.__dchangerBridge) return resolve(window.__dchangerBridge);
         elapsed += interval;
         if (elapsed >= timeout) return reject(new Error("Bridge not available"));
         setTimeout(check, interval);
@@ -75,20 +72,20 @@
 
   function getCSSRules() {
     return `
-    @keyframes roseWarningPulse {
+    @keyframes dchangerWarningPulse {
       0%   { filter: drop-shadow(0 0 0 rgba(255, 70, 70, 0.00)) drop-shadow(0 0 0 rgba(255, 70, 70, 0.00)); opacity: 0.95; }
       50%  { filter: drop-shadow(0 0 6px rgba(255, 70, 70, 0.90)) drop-shadow(0 0 12px rgba(255, 70, 70, 0.45)); opacity: 1.00; }
       100% { filter: drop-shadow(0 0 0 rgba(255, 70, 70, 0.00)) drop-shadow(0 0 0 rgba(255, 70, 70, 0.00)); opacity: 0.95; }
     }
 
-    .rose-warning-glow {
-      animation: roseWarningPulse 1.35s ease-in-out infinite;
+    .dchanger-warning-glow {
+      animation: dchangerWarningPulse 1.35s ease-in-out infinite;
       will-change: filter, opacity;
     }
 
     @font-face {
       font-family: "Beaufort for LOL";
-      src: url("http://127.0.0.1:${window.__roseBridge ? window.__roseBridge.port : 50000}/asset/BeaufortforLOL-Regular.ttf") format("truetype");
+      src: url("http://127.0.0.1:${window.__dchangerBridge ? window.__dchangerBridge.port : 50000}/asset/BeaufortforLOL-Regular.ttf") format("truetype");
       font-weight: normal;
       font-style: normal;
       font-display: swap;
@@ -96,44 +93,44 @@
     
     @font-face {
       font-family: "Beaufort for LOL";
-      src: url("http://127.0.0.1:${window.__roseBridge ? window.__roseBridge.port : 50000}/asset/BeaufortforLOL-Bold.ttf") format("truetype");
+      src: url("http://127.0.0.1:${window.__dchangerBridge ? window.__dchangerBridge.port : 50000}/asset/BeaufortforLOL-Bold.ttf") format("truetype");
       font-weight: bold;
       font-style: normal;
       font-display: swap;
     }
 
     /* Diagnostics / Troubleshooting dialog scrollbar (avoid native Windows scrollbar look) */
-    #rose-diagnostics-body {
+    #dchanger-diagnostics-body {
       scrollbar-width: thin;
       scrollbar-color: #463714 rgba(0, 0, 0, 0.25);
     }
 
-    #rose-diagnostics-body::-webkit-scrollbar {
+    #dchanger-diagnostics-body::-webkit-scrollbar {
       width: 10px;
     }
 
-    #rose-diagnostics-body::-webkit-scrollbar:horizontal {
+    #dchanger-diagnostics-body::-webkit-scrollbar:horizontal {
       display: none !important;
       height: 0 !important;
     }
 
-    #rose-diagnostics-body::-webkit-scrollbar-track {
+    #dchanger-diagnostics-body::-webkit-scrollbar-track {
       background: rgba(0, 0, 0, 0.25);
       border-left: 1px solid rgba(70, 55, 20, 0.55);
     }
 
-    #rose-diagnostics-body::-webkit-scrollbar-thumb {
+    #dchanger-diagnostics-body::-webkit-scrollbar-thumb {
       background: linear-gradient(to bottom, rgba(200, 155, 60, 0.22), rgba(70, 55, 20, 0.85));
       border: 1px solid rgba(70, 55, 20, 0.95);
       border-radius: 10px;
       min-height: 28px;
     }
 
-    #rose-diagnostics-body::-webkit-scrollbar-thumb:hover {
+    #dchanger-diagnostics-body::-webkit-scrollbar-thumb:hover {
       background: linear-gradient(to bottom, rgba(200, 155, 60, 0.32), rgba(70, 55, 20, 0.95));
     }
 
-    #rose-diagnostics-body::-webkit-scrollbar-corner {
+    #dchanger-diagnostics-body::-webkit-scrollbar-corner {
       background: transparent;
     }
     
@@ -228,7 +225,7 @@
       min-width: 50px;
     }
 
-    #${FLYOUT_ID} .rose-tooltip-wrapper {
+    #${FLYOUT_ID} .dchanger-tooltip-wrapper {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -237,10 +234,10 @@
       top: 3px;
     }
 
-    #${FLYOUT_ID} .rose-tooltip-icon {
+    #${FLYOUT_ID} .dchanger-tooltip-icon {
       width: 14px;
       height: 14px;
-      background-image: url("http://127.0.0.1:${window.__roseBridge ? window.__roseBridge.port : 50000}/asset/tooltip.png");
+      background-image: url("http://127.0.0.1:${window.__dchangerBridge ? window.__dchangerBridge.port : 50000}/asset/tooltip.png");
       background-size: contain;
       background-repeat: no-repeat;
       background-position: center;
@@ -253,18 +250,18 @@
       background-color: transparent;
     }
 
-    #${FLYOUT_ID} .rose-tooltip-icon:hover {
+    #${FLYOUT_ID} .dchanger-tooltip-icon:hover {
       opacity: 1;
     }
 
-    #${FLYOUT_ID} .rose-tooltip-icon:focus-visible {
+    #${FLYOUT_ID} .dchanger-tooltip-icon:focus-visible {
       outline: 1px solid #c8aa6e;
       outline-offset: 2px;
       border-radius: 3px;
     }
 
     /* Tooltip bubble is rendered globally (outside flyout) */
-    #rose-global-tooltip {
+    #dchanger-global-tooltip {
       position: fixed;
       left: 0;
       top: 0;
@@ -290,16 +287,16 @@
       font-family: "Beaufort for LOL", serif;
     }
 
-    #rose-global-tooltip[data-show="true"] {
+    #dchanger-global-tooltip[data-show="true"] {
       opacity: 1;
       visibility: visible;
       transform: translateY(0px);
     }
 
-    #rose-global-tooltip::after {
+    #dchanger-global-tooltip::after {
       content: "";
       position: absolute;
-      left: var(--rose-tooltip-arrow-x, 50%);
+      left: var(--dchanger-tooltip-arrow-x, 50%);
       transform: translateX(-50%);
       width: 0;
       height: 0;
@@ -307,10 +304,10 @@
       border-right: 7px solid transparent;
     }
 
-    #rose-global-tooltip::before {
+    #dchanger-global-tooltip::before {
       content: "";
       position: absolute;
-      left: var(--rose-tooltip-arrow-x, 50%);
+      left: var(--dchanger-tooltip-arrow-x, 50%);
       transform: translateX(-50%);
       width: 0;
       height: 0;
@@ -320,24 +317,24 @@
     }
 
     /* Tooltip ABOVE the icon (arrow on bottom) */
-    #rose-global-tooltip[data-placement="top"]::after {
+    #dchanger-global-tooltip[data-placement="top"]::after {
       top: 100%;
       border-top: 7px solid #0b1a2a;
     }
 
-    #rose-global-tooltip[data-placement="top"]::before {
+    #dchanger-global-tooltip[data-placement="top"]::before {
       top: 100%;
       border-top: 8px solid #5c5b56;
       margin-top: 1px;
     }
 
     /* Tooltip BELOW the icon (arrow on top) */
-    #rose-global-tooltip[data-placement="bottom"]::after {
+    #dchanger-global-tooltip[data-placement="bottom"]::after {
       top: -7px;
       border-bottom: 7px solid #0b1a2a;
     }
 
-    #rose-global-tooltip[data-placement="bottom"]::before {
+    #dchanger-global-tooltip[data-placement="bottom"]::before {
       top: -8px;
       border-bottom: 8px solid #5c5b56;
       margin-top: -1px;
@@ -489,14 +486,14 @@
     }
 
     /* Language picker: a code badge in the corner of Settings */
-    #${FLYOUT_ID} .rose-language-picker {
+    #${FLYOUT_ID} .dchanger-language-picker {
       position: absolute;
       top: 50%;
       right: 0;
       transform: translateY(-50%);
       z-index: 5;
     }
-    #${FLYOUT_ID} .rose-language-badge {
+    #${FLYOUT_ID} .dchanger-language-badge {
       display: flex;
       align-items: center;
       gap: 6px;
@@ -512,7 +509,7 @@
       cursor: pointer;
       transition: border-color 0.2s, color 0.2s;
     }
-    #${FLYOUT_ID} .rose-language-badge::after {
+    #${FLYOUT_ID} .dchanger-language-badge::after {
       content: "";
       width: 4px;
       height: 4px;
@@ -520,13 +517,13 @@
       border-bottom: 1px solid currentColor;
       transform: translateY(-2px) rotate(45deg);
     }
-    #${FLYOUT_ID} .rose-language-badge:hover,
-    #${FLYOUT_ID} .rose-language-picker.open .rose-language-badge {
+    #${FLYOUT_ID} .dchanger-language-badge:hover,
+    #${FLYOUT_ID} .dchanger-language-picker.open .dchanger-language-badge {
       border-color: #c8aa6e;
       color: #f0e6d2;
     }
     /* The list opens in <body>, above the Settings panel (z-index 10000-10001) */
-    .rose-language-menu {
+    .dchanger-language-menu {
       position: fixed;
       z-index: 10050;
       width: 230px;
@@ -538,13 +535,13 @@
       box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7);
       box-sizing: border-box;
     }
-    .rose-language-menu::-webkit-scrollbar {
+    .dchanger-language-menu::-webkit-scrollbar {
       width: 6px;
     }
-    .rose-language-menu::-webkit-scrollbar-thumb {
+    .dchanger-language-menu::-webkit-scrollbar-thumb {
       background: #785a28;
     }
-    .rose-language-menu .rose-language-item {
+    .dchanger-language-menu .dchanger-language-item {
       display: flex;
       align-items: center;
       gap: 10px;
@@ -555,15 +552,15 @@
       text-align: left;
       cursor: pointer;
     }
-    .rose-language-menu .rose-language-item:hover {
+    .dchanger-language-menu .dchanger-language-item:hover {
       background: rgba(200, 170, 110, 0.1);
       color: #f0e6d2;
     }
-    .rose-language-menu .rose-language-item.selected {
+    .dchanger-language-menu .dchanger-language-item.selected {
       background: rgba(200, 170, 110, 0.16);
       color: #f0e6d2;
     }
-    .rose-language-menu .rose-language-code {
+    .dchanger-language-menu .dchanger-language-code {
       flex: 0 0 34px;
       color: #c8aa6e;
       font-size: 10px;
@@ -852,13 +849,13 @@
     #manage-custom-mods-dropdown .framed-dropdown-type {
       text-align: left !important;
     }
-    #manage-custom-mods-dropdown lol-uikit-dropdown-option.rose-empty-category {
+    #manage-custom-mods-dropdown lol-uikit-dropdown-option.dchanger-empty-category {
       display: none !important;
     }
-    #manage-custom-mods-dropdown .rose-no-mods-option {
+    #manage-custom-mods-dropdown .dchanger-no-mods-option {
       display: none !important;
     }
-    #manage-custom-mods-dropdown.rose-no-mods .rose-no-mods-option {
+    #manage-custom-mods-dropdown.dchanger-no-mods .dchanger-no-mods-option {
       display: block !important;
       color: #a09b8c !important;
       cursor: default !important;
@@ -1399,8 +1396,8 @@
       cursor: default;
     }
 
-    /* Shown while Rose imports a picked mod */
-    #rose-mod-import-loading {
+    /* Shown while D-Changer imports a picked mod */
+    #dchanger-mod-import-loading {
       position: fixed;
       top: 0;
       left: 0;
@@ -1412,7 +1409,7 @@
       align-items: center;
       justify-content: center;
     }
-    .rose-mod-import-card {
+    .dchanger-mod-import-card {
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1427,27 +1424,27 @@
       font-family: "Beaufort for LOL", serif;
       text-align: center;
     }
-    .rose-mod-import-spinner {
+    .dchanger-mod-import-spinner {
       width: 36px;
       height: 36px;
       box-sizing: border-box;
       border: 3px solid rgba(200, 170, 110, 0.25);
       border-top-color: #c8aa6e;
       border-radius: 50%;
-      animation: roseModImportSpin 0.8s linear infinite;
+      animation: dchangerModImportSpin 0.8s linear infinite;
     }
-    @keyframes roseModImportSpin {
+    @keyframes dchangerModImportSpin {
       to { transform: rotate(360deg); }
     }
     /* Once added: a green check draws itself, then the whole overlay fades out */
-    #rose-mod-import-loading.is-done {
+    #dchanger-mod-import-loading.is-done {
       pointer-events: none;
-      animation: roseModImportFadeOut 0.25s ease 1.25s forwards;
+      animation: dchangerModImportFadeOut 0.25s ease 1.25s forwards;
     }
-    @keyframes roseModImportFadeOut {
+    @keyframes dchangerModImportFadeOut {
       to { opacity: 0; }
     }
-    .rose-mod-import-check {
+    .dchanger-mod-import-check {
       display: block;
       width: 36px;
       height: 36px;
@@ -1456,32 +1453,32 @@
       stroke-width: 4;
       stroke-linecap: round;
       stroke-linejoin: round;
-      animation: roseModImportPop 0.3s ease-out 0.5s;
+      animation: dchangerModImportPop 0.3s ease-out 0.5s;
     }
-    .rose-mod-import-check circle {
+    .dchanger-mod-import-check circle {
       stroke-dasharray: 151;
       stroke-dashoffset: 151;
       transform: rotate(-90deg);
       transform-origin: 26px 26px;
-      animation: roseModImportDraw 0.4s ease-out forwards;
+      animation: dchangerModImportDraw 0.4s ease-out forwards;
     }
-    .rose-mod-import-check path {
+    .dchanger-mod-import-check path {
       stroke-dasharray: 32;
       stroke-dashoffset: 32;
-      animation: roseModImportDraw 0.25s ease-out 0.35s forwards;
+      animation: dchangerModImportDraw 0.25s ease-out 0.35s forwards;
     }
-    @keyframes roseModImportDraw {
+    @keyframes dchangerModImportDraw {
       to { stroke-dashoffset: 0; }
     }
-    @keyframes roseModImportPop {
+    @keyframes dchangerModImportPop {
       50% { transform: scale(1.12); }
     }
-    .rose-mod-import-title {
+    .dchanger-mod-import-title {
       color: #f0e6d2;
       font-size: 14px;
       font-weight: bold;
     }
-    .rose-mod-import-file {
+    .dchanger-mod-import-file {
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -1521,7 +1518,7 @@
       version: payload.version || "",
     };
     // Update version badge if the panel is already open
-    const badge = document.getElementById("rose-version-badge");
+    const badge = document.getElementById("dchanger-version-badge");
     if (badge && payload.version) {
       badge.textContent = `v${payload.version}`;
     }
@@ -1711,16 +1708,16 @@
     applyErrorBadges();
   }
 
-  // Reconnect screen: let the player stop Rose's injection when a mod crashes the game
+  // Reconnect screen: let the player stop D-Changer's injection when a mod crashes the game
   let _reconnectObserverStarted = false;
   // The client detaches the reconnect screen while hidden, so querySelector can't reach it
   const _stopInjectionButtons = new Set();
   function addStopInjectionButton() {
     const container = document.querySelector(".reconnect-button-container");
-    if (!container || container.querySelector(".rose-stop-injection")) return;
+    if (!container || container.querySelector(".dchanger-stop-injection")) return;
 
     const button = document.createElement("lol-uikit-flat-button");
-    button.className = "rose-stop-injection";
+    button.className = "dchanger-stop-injection";
     button.setAttribute("margin-right", "10px");
     resetStopInjectionButton(button);
     _stopInjectionButtons.add(button);
@@ -1734,8 +1731,8 @@
   }
 
   function labelStopInjectionButton(button) {
-    button.title = t("Stop Rose's injection, then reconnect without mods (use this if a mod crashes your game)");
-    button.textContent = button.hasAttribute("disabled") ? t("Mods disabled") : t("Disable Rose mods");
+    button.title = t("Stop D-Changer's injection, then reconnect without mods (use this if a mod crashes your game)");
+    button.textContent = button.hasAttribute("disabled") ? t("Mods disabled") : t("Disable D-Changer mods");
   }
 
   function resetStopInjectionButton(button) {
@@ -1744,9 +1741,9 @@
   }
 
   // Menus on screen follow a language change
-  window.addEventListener("rose-i18n-changed", () => {
+  window.addEventListener("dchanger-i18n-changed", () => {
     _stopInjectionButtons.forEach(labelStopInjectionButton);
-    const navItem = document.querySelector("lol-uikit-navigation-item.menu_item_Golden.Rose");
+    const navItem = document.querySelector("lol-uikit-navigation-item.menu_item_Golden.D-Changer");
     if (settingsPanel && document.getElementById(PANEL_ID) && navItem) {
       createSettingsFlyout(navItem);
     }
@@ -1775,7 +1772,7 @@
     if (_badgeObserverStarted) return;
     _badgeObserverStarted = true;
 
-    // Re-apply badges when the Golden Rose nav item is injected by ROSE-UI (or recreated by Ember).
+    // Re-apply badges when the Golden D-Changer nav item is injected by DCH-UI (or recreated by Ember).
     const tryApply = () => {
       try {
         applyErrorBadges();
@@ -1811,9 +1808,9 @@
   }
 
   function applyErrorBadges() {
-    // Sidebar "Golden Rose" nav icon badge
+    // Sidebar "Golden D-Changer" nav icon badge
     const navItem = document.querySelector(
-      "lol-uikit-navigation-item.menu_item_Golden.Rose"
+      "lol-uikit-navigation-item.menu_item_Golden.D-Changer"
     );
     if (navItem) {
       const host =
@@ -1822,20 +1819,20 @@
         navItem;
 
       host.style.position = host.style.position || "relative";
-      // Use warning image overlay (assets/red-warning.png) on the top-right of the Rose icon.
-      let badge = host.querySelector("#rose-errors-badge");
+      // Use warning image overlay (assets/red-warning.png) on the top-right of the D-Changer icon.
+      let badge = host.querySelector("#dchanger-errors-badge");
       if (errorBadgeState.hasErrors) {
         if (!badge) {
           badge = document.createElement("div");
-          badge.id = "rose-errors-badge";
-          badge.classList.add("rose-warning-glow");
+          badge.id = "dchanger-errors-badge";
+          badge.classList.add("dchanger-warning-glow");
           // Position + size for the warning overlay
           badge.style.position = "absolute";
           badge.style.top = "-10px";
           badge.style.right = "-10px";
           badge.style.width = "14px";
           badge.style.height = "14px";
-          badge.style.backgroundImage = `url(http://127.0.0.1:${window.__roseBridge ? window.__roseBridge.port : 50000}/asset/red-warning.png)`;
+          badge.style.backgroundImage = `url(http://127.0.0.1:${window.__dchangerBridge ? window.__dchangerBridge.port : 50000}/asset/red-warning.png)`;
           badge.style.backgroundSize = "contain";
           badge.style.backgroundRepeat = "no-repeat";
           badge.style.backgroundPosition = "center";
@@ -1852,19 +1849,19 @@
     const tb = document.getElementById("troubleshoot-button");
     if (tb) {
       tb.style.position = tb.style.position || "relative";
-      let warn = tb.querySelector("#rose-troubleshoot-warning");
+      let warn = tb.querySelector("#dchanger-troubleshoot-warning");
       if (errorBadgeState.hasErrors) {
         if (!warn) {
           warn = document.createElement("div");
-          warn.id = "rose-troubleshoot-warning";
-          warn.classList.add("rose-warning-glow");
+          warn.id = "dchanger-troubleshoot-warning";
+          warn.classList.add("dchanger-warning-glow");
 
           warn.style.position = "absolute";
           warn.style.top = "-15px";
           warn.style.right = "-9px";
           warn.style.width = "14px";
           warn.style.height = "14px";
-          warn.style.backgroundImage = `url(http://127.0.0.1:${window.__roseBridge ? window.__roseBridge.port : 50000}/asset/red-warning.png)`;
+          warn.style.backgroundImage = `url(http://127.0.0.1:${window.__dchangerBridge ? window.__dchangerBridge.port : 50000}/asset/red-warning.png)`;
           warn.style.backgroundSize = "contain";
           warn.style.backgroundRepeat = "no-repeat";
           warn.style.backgroundPosition = "center";
@@ -1954,30 +1951,30 @@
     return path.trim().length > 0;
   }
 
-  // Language of Rose's menus: a code badge in the corner of Settings, applied as soon as it is picked
+  // Language of D-Changer's menus: a code badge in the corner of Settings, applied as soon as it is picked
   function createLanguagePicker() {
-    const i18n = window.RoseI18n;
+    const i18n = window.DChangerI18n;
     const setting = i18n.setting || "auto";
     const languages = i18n.languages || {};
 
     const picker = document.createElement("div");
-    picker.className = "rose-language-picker";
+    picker.className = "dchanger-language-picker";
 
     const badge = document.createElement("button");
     badge.type = "button";
-    badge.className = "rose-language-badge";
+    badge.className = "dchanger-language-badge";
     badge.textContent = languageBadge(i18n.language);
     badge.title = `${t("Language:")} ${setting === "auto" ? t("Auto (client language)") : languages[setting] || setting}`;
     picker.appendChild(badge);
 
     const menu = document.createElement("div");
-    menu.className = "rose-language-menu";
+    menu.className = "dchanger-language-menu";
     [["auto", t("Auto (client language)")], ...Object.entries(languages)].forEach(([value, name]) => {
       const item = document.createElement("div");
-      item.className = "rose-language-item";
+      item.className = "dchanger-language-item";
       if (value === setting) item.classList.add("selected");
       const code = document.createElement("span");
-      code.className = "rose-language-code";
+      code.className = "dchanger-language-code";
       code.textContent = value === "auto" ? "AUTO" : languageBadge(value);
       const label = document.createElement("span");
       label.textContent = name;
@@ -2027,7 +2024,7 @@
 
   // The language list lives in <body>: it goes with the panel it was opened from
   function closeLanguageMenu() {
-    document.querySelectorAll(".rose-language-menu").forEach((menu) => menu.remove());
+    document.querySelectorAll(".dchanger-language-menu").forEach((menu) => menu.remove());
   }
 
   function createSettingsFlyout(navItem) {
@@ -2145,11 +2142,11 @@
     form.style.alignItems = "center";
 
     function getOrCreateGlobalTooltip() {
-      let el = document.getElementById("rose-global-tooltip");
+      let el = document.getElementById("dchanger-global-tooltip");
       if (el) return el;
 
       el = document.createElement("div");
-      el.id = "rose-global-tooltip";
+      el.id = "dchanger-global-tooltip";
       el.setAttribute("role", "tooltip");
       el.setAttribute("data-show", "false");
       document.body.appendChild(el);
@@ -2157,7 +2154,7 @@
     }
 
     function hideGlobalTooltip() {
-      const el = document.getElementById("rose-global-tooltip");
+      const el = document.getElementById("dchanger-global-tooltip");
       if (!el) return;
       el.setAttribute("data-show", "false");
     }
@@ -2190,16 +2187,16 @@
       // Nudge the arrow towards the anchor if clamped
       const anchorCenterX = rect.left + rect.width / 2;
       const arrowX = Math.max(12, Math.min(tRect.width - 12, anchorCenterX - left));
-      tooltip.style.setProperty("--rose-tooltip-arrow-x", `${Math.round(arrowX)}px`);
+      tooltip.style.setProperty("--dchanger-tooltip-arrow-x", `${Math.round(arrowX)}px`);
     }
 
     function createTooltipButton(tooltipText, ariaLabel) {
       const wrapper = document.createElement("span");
-      wrapper.className = "rose-tooltip-wrapper";
+      wrapper.className = "dchanger-tooltip-wrapper";
 
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "rose-tooltip-icon";
+      btn.className = "dchanger-tooltip-icon";
       btn.setAttribute("aria-label", ariaLabel || t("Info"));
 
       // prevent accidental focus/drag interactions with nearby controls
@@ -2218,7 +2215,7 @@
 
       // Keep tooltip in correct position while resizing/scrolling
       const reposition = () => {
-        const tt = document.getElementById("rose-global-tooltip");
+        const tt = document.getElementById("dchanger-global-tooltip");
         if (!tt || tt.getAttribute("data-show") !== "true") return;
         showGlobalTooltipFor(btn, tooltipText);
       };
@@ -2240,7 +2237,7 @@
     titleRow.appendChild(title);
 
     const versionBadge = document.createElement("span");
-    versionBadge.id = "rose-version-badge";
+    versionBadge.id = "dchanger-version-badge";
     versionBadge.style.cssText = [
       "font-size: 11px",
       "color: #a09b8c",
@@ -2250,7 +2247,7 @@
     versionBadge.textContent = currentSettings.version ? `v${currentSettings.version}` : "";
     titleRow.appendChild(versionBadge);
 
-    if (window.RoseI18n) {
+    if (window.DChangerI18n) {
       // The title alone is centered on the panel: the version hangs to its right
       // and the language picker sits in the corner
       titleRow.style.position = "relative";
@@ -2384,7 +2381,7 @@
 
     // Benchmark info placeholder (populated when diagnostics data arrives)
     const benchmarkInfo = document.createElement("div");
-    benchmarkInfo.id = "rose-threshold-benchmark";
+    benchmarkInfo.id = "dchanger-threshold-benchmark";
     benchmarkInfo.style.marginTop = "6px";
     benchmarkInfo.style.fontSize = "11px";
     benchmarkInfo.style.fontFamily = "'Beaufort for LOL', serif";
@@ -2782,12 +2779,12 @@
       }
 
       // Check if style already injected
-      if (root.querySelector('style[data-rose-dropdown-color]')) {
+      if (root.querySelector('style[data-dchanger-dropdown-color]')) {
         return;
       }
 
       const rootStyle = document.createElement("style");
-      rootStyle.setAttribute("data-rose-dropdown-color", "true");
+      rootStyle.setAttribute("data-dchanger-dropdown-color", "true");
       rootStyle.textContent = `
         :host .ui-dropdown {
           color: #CDBE91 !important;
@@ -2902,7 +2899,7 @@
     const manageNoModsOption = document.createElement("lol-uikit-dropdown-option");
     manageNoModsOption.setAttribute("slot", "lol-uikit-dropdown-option");
     manageNoModsOption.setAttribute("value", "");
-    manageNoModsOption.className = "framed-dropdown-type rose-no-mods-option";
+    manageNoModsOption.className = "framed-dropdown-type dchanger-no-mods-option";
     manageNoModsOption.textContent = t("No custom mods added yet");
     manageNoModsOption.addEventListener("click", (e) => {
       e.preventDefault();
@@ -2990,9 +2987,9 @@
         if (manageRetryCount < MAX_RETRIES) { manageRetryCount++; setTimeout(injectManageShadowStyles, 50); }
         return;
       }
-      if (root.querySelector('style[data-rose-dropdown-color]')) return;
+      if (root.querySelector('style[data-dchanger-dropdown-color]')) return;
       const s = document.createElement("style");
-      s.setAttribute("data-rose-dropdown-color", "true");
+      s.setAttribute("data-dchanger-dropdown-color", "true");
       s.textContent = `
         :host .ui-dropdown {
           color: #CDBE91 !important;
@@ -3085,31 +3082,6 @@
     form.appendChild(saveButton);
 
     // Links section
-    const linksSection = document.createElement("div");
-    linksSection.className = "settings-links";
-
-    const discordLink = document.createElement("a");
-    discordLink.className = "settings-link";
-    discordLink.href = DISCORD_INVITE_URL;
-    discordLink.target = "_blank";
-    discordLink.textContent = "Discord";
-    linksSection.appendChild(discordLink);
-
-    const kofiLink = document.createElement("a");
-    kofiLink.className = "settings-link";
-    kofiLink.href = KOFI_URL;
-    kofiLink.target = "_blank";
-    kofiLink.textContent = "Ko-Fi";
-    linksSection.appendChild(kofiLink);
-
-    const githubLink = document.createElement("a");
-    githubLink.className = "settings-link";
-    githubLink.href = GITHUB_URL;
-    githubLink.target = "_blank";
-    githubLink.textContent = "GitHub";
-    linksSection.appendChild(githubLink);
-
-    form.appendChild(linksSection);
 
     flyoutContent.appendChild(form);
     flyoutFrame.appendChild(flyoutContent);
@@ -3378,7 +3350,7 @@
     }
 
     // Update version badge
-    const versionBadge = document.getElementById("rose-version-badge");
+    const versionBadge = document.getElementById("dchanger-version-badge");
     if (versionBadge && currentSettings.version) {
       versionBadge.textContent = `v${currentSettings.version}`;
     }
@@ -3609,7 +3581,7 @@
   }
 
   function openChampionSelection(mode) {
-    window.__roseChampionSelectionMode = mode === "manage" ? "manage" : "add";
+    window.__dchangerChampionSelectionMode = mode === "manage" ? "manage" : "add";
 
     // Remove existing dialog if any
     const existingDialog = document.getElementById("champion-selection-dialog");
@@ -3658,7 +3630,7 @@
     // Title text
     const titleWrapper = document.createElement("div");
     titleWrapper.className = "dialog-title-wrapper";
-    titleWrapper.textContent = window.__roseChampionSelectionMode === "manage"
+    titleWrapper.textContent = window.__dchangerChampionSelectionMode === "manage"
       ? t("Manage Mods - Select Champion")
       : t("Select Champion");
     header.appendChild(titleWrapper);
@@ -3724,13 +3696,13 @@
     if (bridge) bridge.send({
       type: "add-custom-mods-champion-selected",
       action: "list",
-      withModsOnly: window.__roseChampionSelectionMode === "manage",
+      withModsOnly: window.__dchangerChampionSelectionMode === "manage",
     });
 
     // Search functionality
     searchInput.addEventListener("input", (e) => {
       const searchTerm = e.target.value.toLowerCase().trim();
-      const allChampions = window.__roseAllChampions || [];
+      const allChampions = window.__dchangerAllChampions || [];
       const filtered = allChampions.filter((champ) =>
         champ.name.toLowerCase().includes(searchTerm)
       );
@@ -3738,7 +3710,7 @@
     });
 
     // Store render function for bridge response
-    window.__roseChampionRenderer = renderChampionsGrid;
+    window.__dchangerChampionRenderer = renderChampionsGrid;
   }
 
   function closeChampionSelection() {
@@ -3746,8 +3718,8 @@
     if (dialog) {
       dialog.remove();
     }
-    delete window.__roseChampionRenderer;
-    delete window.__roseAllChampions;
+    delete window.__dchangerChampionRenderer;
+    delete window.__dchangerAllChampions;
   }
 
   function renderChampionsGrid(champions) {
@@ -3783,7 +3755,7 @@
   }
 
   function handleChampionSelection(championId) {
-    const mode = window.__roseChampionSelectionMode === "manage" ? "manage" : "add";
+    const mode = window.__dchangerChampionSelectionMode === "manage" ? "manage" : "add";
     closeChampionSelection();
     if (mode === "manage") {
       openChampionModsList(championId);
@@ -3906,7 +3878,7 @@
     flyoutFrame.appendChild(flyoutContent);
     dialog.appendChild(flyoutFrame);
 
-    window.__roseSelectedSkinIds = new Set();
+    window.__dchangerSelectedSkinIds = new Set();
 
     // Request skins for champion
     if (bridge) bridge.send({
@@ -3916,7 +3888,7 @@
     });
 
     // Store champion ID for later use
-    window.__roseSelectedChampionId = championId;
+    window.__dchangerSelectedChampionId = championId;
   }
 
   function closeSkinSelection() {
@@ -3924,11 +3896,11 @@
     if (dialog) {
       dialog.remove();
     }
-    delete window.__roseSelectedChampionId;
+    delete window.__dchangerSelectedChampionId;
   }
 
   function updateSkinSelectionUI() {
-    const selectedSkinIds = window.__roseSelectedSkinIds || new Set();
+    const selectedSkinIds = window.__dchangerSelectedSkinIds || new Set();
     document.querySelectorAll("#skins-list [data-target-skin-id]").forEach((option) => {
       const skinId = Number(option.dataset.targetSkinId);
       const selected = selectedSkinIds.has(skinId);
@@ -3960,7 +3932,7 @@
   }
 
   function handleSkinSelection(championId, skinId) {
-    const selectedSkinIds = window.__roseSelectedSkinIds || new Set();
+    const selectedSkinIds = window.__dchangerSelectedSkinIds || new Set();
     const numericSkinId = Number(skinId);
     if (!Number.isFinite(numericSkinId) || numericSkinId <= 0) return;
 
@@ -3969,13 +3941,13 @@
     } else {
       selectedSkinIds.add(numericSkinId);
     }
-    window.__roseSelectedSkinIds = selectedSkinIds;
+    window.__dchangerSelectedSkinIds = selectedSkinIds;
     updateSkinSelectionUI();
     log("info", `Skin selection toggled: champion=${championId}, skin=${numericSkinId}`);
   }
 
   function confirmSkinSelection(championId) {
-    const selectedSkinIds = Array.from(window.__roseSelectedSkinIds || []);
+    const selectedSkinIds = Array.from(window.__dchangerSelectedSkinIds || []);
     if (selectedSkinIds.length === 0) return;
 
     closeSkinSelection();
@@ -4003,7 +3975,7 @@
     { id: "others", name: "Others" },
   ];
 
-  // Manage Mods only offers the categories Rose says have a mod added (null until it answers)
+  // Manage Mods only offers the categories D-Changer says have a mod added (null until it answers)
   let categoriesWithMods = null;
 
   function requestManageCategories() {
@@ -4021,10 +3993,10 @@
     if (!dropdown) return;
     const categories = categoriesWithMods || [];
     dropdown.querySelectorAll('lol-uikit-dropdown-option:not([value=""])').forEach((option) => {
-      option.classList.toggle("rose-empty-category", !categories.includes(option.getAttribute("value")));
+      option.classList.toggle("dchanger-empty-category", !categories.includes(option.getAttribute("value")));
     });
-    // Before Rose answers nothing is offered, but "no mods" isn't claimed yet either
-    dropdown.classList.toggle("rose-no-mods", categoriesWithMods !== null && categories.length === 0);
+    // Before D-Changer answers nothing is offered, but "no mods" isn't claimed yet either
+    dropdown.classList.toggle("dchanger-no-mods", categoriesWithMods !== null && categories.length === 0);
   }
 
   function handleManageCategorySelection(category) {
@@ -4302,9 +4274,9 @@
       "champion-mods-manage-dialog",
       t("Manage Mods - Loading..."),
       () => openChampionSelection("manage"),
-      () => { delete window.__roseManageChampionId; }
+      () => { delete window.__dchangerManageChampionId; }
     );
-    window.__roseManageChampionId = championId;
+    window.__dchangerManageChampionId = championId;
 
     if (bridge) bridge.send({
       type: "request-manage-champion-mods",
@@ -4315,11 +4287,11 @@
   function closeChampionModsList() {
     const dialog = document.getElementById("champion-mods-manage-dialog");
     if (dialog) dialog.remove();
-    delete window.__roseManageChampionId;
+    delete window.__dchangerManageChampionId;
   }
 
   function handleManageSkinModsResponse(payload) {
-    if (Number(payload.championId) !== Number(window.__roseManageChampionId)) return;
+    if (Number(payload.championId) !== Number(window.__dchangerManageChampionId)) return;
 
     const dialog = document.getElementById("champion-mods-manage-dialog");
     const listContainer = document.getElementById("champion-mods-manage-dialog-list");
@@ -4353,7 +4325,7 @@
           deleteButton.textContent = t("Deleting...");
           if (bridge) bridge.send({
             type: "delete-champion-mod",
-            championId: window.__roseManageChampionId,
+            championId: window.__dchangerManageChampionId,
             modName: mod.modName,
             relativePath: mod.relativePath,
           });
@@ -4363,7 +4335,7 @@
           renameButton.textContent = t("Saving...");
           if (bridge) bridge.send({
             type: "rename-champion-mod",
-            championId: window.__roseManageChampionId,
+            championId: window.__dchangerManageChampionId,
             modName: mod.modName,
             relativePath: mod.relativePath,
             newName: newName,
@@ -4382,7 +4354,7 @@
     }
     if (
       document.getElementById("champion-mods-manage-dialog") &&
-      Number(payload.championId) === Number(window.__roseManageChampionId)
+      Number(payload.championId) === Number(window.__dchangerManageChampionId)
     ) {
       openChampionModsList(payload.championId);
     }
@@ -4396,7 +4368,7 @@
     }
     if (
       document.getElementById("champion-mods-manage-dialog") &&
-      Number(payload.championId) === Number(window.__roseManageChampionId)
+      Number(payload.championId) === Number(window.__dchangerManageChampionId)
     ) {
       openChampionModsList(payload.championId);
     }
@@ -4408,9 +4380,9 @@
       "category-mods-manage-dialog",
       t("Manage Mods - {name}", { name: categoryMeta ? t(categoryMeta.name) : category }),
       null,
-      () => { delete window.__roseManageCategory; }
+      () => { delete window.__dchangerManageCategory; }
     );
-    window.__roseManageCategory = category;
+    window.__dchangerManageCategory = category;
 
     if (bridge) bridge.send({
       type: "request-manage-category-mods",
@@ -4419,7 +4391,7 @@
   }
 
   function handleManageCategoryModsResponse(payload) {
-    if (payload.category !== window.__roseManageCategory) return;
+    if (payload.category !== window.__dchangerManageCategory) return;
 
     const listContainer = document.getElementById("category-mods-manage-dialog-list");
     if (!listContainer) return;
@@ -4440,7 +4412,7 @@
           deleteButton.textContent = t("Deleting...");
           if (bridge) bridge.send({
             type: "delete-category-mod",
-            category: window.__roseManageCategory,
+            category: window.__dchangerManageCategory,
             modName: mod.name,
           });
         },
@@ -4449,7 +4421,7 @@
           renameButton.textContent = t("Saving...");
           if (bridge) bridge.send({
             type: "rename-category-mod",
-            category: window.__roseManageCategory,
+            category: window.__dchangerManageCategory,
             modName: mod.name,
             newName: newName,
           });
@@ -4467,7 +4439,7 @@
     }
     if (
       document.getElementById("category-mods-manage-dialog") &&
-      payload.category === window.__roseManageCategory
+      payload.category === window.__dchangerManageCategory
     ) {
       openCategoryModsList(payload.category);
     }
@@ -4481,7 +4453,7 @@
     }
     if (
       document.getElementById("category-mods-manage-dialog") &&
-      payload.category === window.__roseManageCategory
+      payload.category === window.__dchangerManageCategory
     ) {
       openCategoryModsList(payload.category);
     }
@@ -4503,7 +4475,7 @@
 
     const champions = payload.champions || [];
     if (champions.length === 0) {
-      const emptyText = window.__roseChampionSelectionMode === "manage"
+      const emptyText = window.__dchangerChampionSelectionMode === "manage"
         ? t("No champions have custom skins yet.")
         : t("No champions found. Please ensure League of Legends client is running.");
       championsGrid.innerHTML = `<div style="grid-column: 1 / -1; color: #cdbe91; text-align: center; padding: 20px; font-family: 'Beaufort for LOL', serif;">${escapeHtml(emptyText)}</div>`;
@@ -4511,11 +4483,11 @@
     }
 
     // Store champions for search functionality
-    window.__roseAllChampions = champions;
+    window.__dchangerAllChampions = champions;
 
     // Render champions
-    if (window.__roseChampionRenderer) {
-      window.__roseChampionRenderer(champions);
+    if (window.__dchangerChampionRenderer) {
+      window.__dchangerChampionRenderer(champions);
     } else {
       // Fallback: render directly
       renderChampionsGrid(champions);
@@ -4707,31 +4679,31 @@
   let modImportShownAt = 0;
   let modImportTimer = null;
 
-  // Rose sends mod-import-started once a file is picked and folder-opened-response
-  // when the import is over. It can't be dismissed: only the answer or losing Rose ends it
+  // D-Changer sends mod-import-started once a file is picked and folder-opened-response
+  // when the import is over. It can't be dismissed: only the answer or losing D-Changer ends it
   function showModImportLoading(payload) {
     hideModImportLoading();
     modImportShownAt = Date.now();
 
     const overlay = document.createElement("div");
-    overlay.id = "rose-mod-import-loading";
+    overlay.id = "dchanger-mod-import-loading";
 
     const card = document.createElement("div");
-    card.className = "rose-mod-import-card";
+    card.className = "dchanger-mod-import-card";
     card.setAttribute("role", "status");
 
     const spinner = document.createElement("div");
-    spinner.className = "rose-mod-import-spinner";
+    spinner.className = "dchanger-mod-import-spinner";
     card.appendChild(spinner);
 
     const title = document.createElement("div");
-    title.className = "rose-mod-import-title";
+    title.className = "dchanger-mod-import-title";
     title.textContent = t("Adding mod...");
     card.appendChild(title);
 
     if (payload.fileName) {
       const fileName = document.createElement("div");
-      fileName.className = "rose-mod-import-file";
+      fileName.className = "dchanger-mod-import-file";
       fileName.textContent = payload.fileName;
       fileName.title = payload.fileName;
       card.appendChild(fileName);
@@ -4742,20 +4714,20 @@
   }
 
   function showModImportDone() {
-    const overlay = document.getElementById("rose-mod-import-loading");
+    const overlay = document.getElementById("dchanger-mod-import-loading");
     if (!overlay || overlay.classList.contains("is-done")) return;
 
     overlay.classList.add("is-done");
-    overlay.querySelector(".rose-mod-import-spinner").outerHTML =
-      '<svg class="rose-mod-import-check" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"></circle><path d="M15 27l7 7 15-15"></path></svg>';
-    overlay.querySelector(".rose-mod-import-title").textContent = t("Mod added");
+    overlay.querySelector(".dchanger-mod-import-spinner").outerHTML =
+      '<svg class="dchanger-mod-import-check" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"></circle><path d="M15 27l7 7 15-15"></path></svg>';
+    overlay.querySelector(".dchanger-mod-import-title").textContent = t("Mod added");
     modImportTimer = setTimeout(hideModImportLoading, MOD_IMPORT_DONE_MS);
   }
 
   function hideModImportLoading() {
     clearTimeout(modImportTimer);
     modImportTimer = null;
-    const overlay = document.getElementById("rose-mod-import-loading");
+    const overlay = document.getElementById("dchanger-mod-import-loading");
     if (overlay) overlay.remove();
   }
 
@@ -4791,7 +4763,7 @@
 
   function openDiagnosticsDialog() {
     // If already open, close it
-    const existing = document.getElementById("rose-diagnostics-dialog");
+    const existing = document.getElementById("dchanger-diagnostics-dialog");
     if (existing) {
       existing.remove();
       diagnosticsDialog = null;
@@ -4799,7 +4771,7 @@
     }
 
     const dialog = document.createElement("div");
-    dialog.id = "rose-diagnostics-dialog";
+    dialog.id = "dchanger-diagnostics-dialog";
     dialog.style.position = "fixed";
     dialog.style.top = "0";
     dialog.style.left = "0";
@@ -4886,7 +4858,7 @@
     panel.appendChild(closeBtn);
 
     const body = document.createElement("div");
-    body.id = "rose-diagnostics-body";
+    body.id = "dchanger-diagnostics-body";
     body.style.color = "#cdbe91";
     body.style.fontFamily = "'Beaufort for LOL', serif";
     body.style.fontSize = "12px";
@@ -4901,7 +4873,7 @@
     panel.appendChild(body);
 
     const foot = document.createElement("div");
-    foot.id = "rose-diagnostics-foot";
+    foot.id = "dchanger-diagnostics-foot";
     foot.style.marginTop = "8px";
     foot.style.color = "#7e6f4e";
     foot.style.fontFamily = "'Beaufort for LOL', serif";
@@ -4939,15 +4911,15 @@
 
   function renderDiagnosticsDialog() {
     if (!diagnosticsDialog) return;
-    const body = document.getElementById("rose-diagnostics-body");
-    const foot = document.getElementById("rose-diagnostics-foot");
+    const body = document.getElementById("dchanger-diagnostics-body");
+    const foot = document.getElementById("dchanger-diagnostics-foot");
     if (!body || !foot) return;
 
     const errors = Array.isArray(diagnosticsState.errors) ? diagnosticsState.errors : [];
     if (errors.length === 0) {
       body.innerHTML = `
         <div style="opacity:0.85; margin-bottom:8px;">${escapeHtml(t("No recent errors."))}</div>
-        <div style="opacity:0.75;">${escapeHtml(t("If something feels off, open the logs folder and share the latest log in a discord ticket."))}</div>
+        <div style="opacity:0.75;">${escapeHtml(t("If something feels off, open the logs folder and share the latest log when reporting a problem."))}</div>
       `.trim();
     } else {
       const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -4990,7 +4962,7 @@
 
           let fixText;
           if (thresholdAtMax) {
-            fixText = t("Fix: you're already at the maximum Injection Threshold. This usually means the injection is extremely slow. Try lighter mods, close heavy apps, move League/mods to an SSD, and consider adding antivirus exclusions for the League and Rose folders. Then retry.");
+            fixText = t("Fix: you're already at the maximum Injection Threshold. This usually means the injection is extremely slow. Try lighter mods, close heavy apps, move League/mods to an SSD, and consider adding antivirus exclusions for the League and D-Changer folders. Then retry.");
           } else if (hasTrackerData) {
             fixText = t('Fix: based on {games} game(s), base skin confirmation takes up to {ms}ms (p90). Recommended threshold: {seconds}s. Use the "Apply recommended" button below, or increase "Injection Threshold" manually.', { games: stats.confirmed_count, ms: stats.p90_ms, seconds: recS });
           } else {
@@ -5019,9 +4991,9 @@
           return {
             title: t("Injection exceeded the timeout (process was stopped)"),
             details: [
-              t("What it means: injection took longer than the allowed time, so ROSE stopped the process."),
+              t("What it means: injection took longer than the allowed time, so D-Changer stopped the process."),
               timeoutAtMax
-                ? t("Fix: you're already at the maximum Monitor Auto-Resume Timeout. This usually means the injection is extremely slow. Try lighter mods, close heavy apps, move League/mods to an SSD, and consider adding antivirus exclusions for the League and Rose folders. Then retry.")
+                ? t("Fix: you're already at the maximum Monitor Auto-Resume Timeout. This usually means the injection is extremely slow. Try lighter mods, close heavy apps, move League/mods to an SSD, and consider adding antivirus exclusions for the League and D-Changer folders. Then retry.")
                 : t('Fix: increase "Monitor Auto-Resume Timeout (seconds)" and click Save. If the warning is still there, increase it again and Save again. Once the warning is gone, try again.'),
             ],
           };
@@ -5033,8 +5005,8 @@
           return {
             title: t('Not enough disk space for injection'),
             details: [
-              t('What it means: Rose could not create the overlay for the selected skin.'),
-              t('Fix: free up space on the drive containing Rose injection files, then retry. Map mods can require several GB.'),
+              t('What it means: D-Changer could not create the overlay for the selected skin.'),
+              t('Fix: free up space on the drive containing D-Changer injection files, then retry. Map mods can require several GB.'),
             ],
           };
         }
@@ -5044,7 +5016,7 @@
             title: t('LTK patcher is outdated (end of life reached)'),
             details: [
               t('What it means: your ltk_patcher_dll.dll no longer supports the current game build, so skins cannot be injected.'),
-              t("Fix: update LTK Manager, copy its new ltk_patcher_host.exe and ltk_patcher_dll.dll into Rose's tools folder, then restart Rose."),
+              t("Fix: update LTK Manager, copy its new ltk_patcher_host.exe and ltk_patcher_dll.dll into D-Changer's tools folder, then restart D-Changer."),
             ],
           };
         }
@@ -5053,8 +5025,8 @@
           return {
             title: t('LTK patcher files are missing'),
             details: [
-              t('What it means: Rose needs ltk_patcher_host.exe and ltk_patcher_dll.dll to inject skins.'),
-              t("Fix: copy both files from your LTK Manager install into Rose's tools folder, then restart Rose."),
+              t('What it means: D-Changer needs ltk_patcher_host.exe and ltk_patcher_dll.dll to inject skins.'),
+              t("Fix: copy both files from your LTK Manager install into D-Changer's tools folder, then restart D-Changer."),
             ],
           };
         }
@@ -5064,11 +5036,11 @@
           // Why it failed (ltk_failure_cause in overlay_manager.py): most
           // failures have nothing to do with outdated patcher files
           const fixes = {
-            killed: () => t("Fix: another program closed the LTK patcher, most often an antivirus. Add Rose's folder to its exclusions, then retry."),
+            killed: () => t("Fix: another program closed the LTK patcher, most often an antivirus. Add D-Changer's folder to its exclusions, then retry."),
             hook: () => t('Fix: the patcher could not attach to the game this time. Retry the next game.'),
             late: () => t('Fix: the game started before the patcher was ready. Retry the next game.'),
             rejected: () => t('Fix: the patcher rejected the overlay built for this game. Try another skin or turn off custom mods. If every skin fails, update your LTK patcher files.'),
-            start: () => t("Fix: Rose could not start ltk_patcher_host.exe. Check that it is still in Rose's tools folder: an antivirus may have removed it."),
+            start: () => t("Fix: D-Changer could not start ltk_patcher_host.exe. Check that it is still in D-Changer's tools folder: an antivirus may have removed it."),
             crashed: () => t('Fix: the LTK patcher crashed. Retry the next game. If it crashes every game, update your LTK patcher files.'),
           };
           const fix = fixes[e?.cause];
@@ -5076,8 +5048,8 @@
             title: t('LTK patcher failed during injection'),
             details: [
               detail ? t('What happened: {detail}', { detail }) : t('What happened: the LTK patcher reported an error.'),
-              fix ? fix() : t('Fix: retry the next game. If it fails every game, report it with your Rose logs.'),
-              t('Full output is in rose_runoverlay_*.log in the Rose logs folder.'),
+              fix ? fix() : t('Fix: retry the next game. If it fails every game, report it with your D-Changer logs.'),
+              t('Full output is in dchanger_runoverlay_*.log in the D-Changer logs folder.'),
             ],
           };
         }
@@ -5113,7 +5085,7 @@
                 <span style="font-weight:800; color:#c89b3c;">${idx + 1}.</span>
                 ${tsHtml}
                 <span style="font-weight:700; flex:1;">${title}</span>
-                <button class="rose-diagnostics-delete" data-key="${escapeHtml(e?.key || e?.text || "")}" title="${escapeHtml(t("Delete this error"))}" style="
+                <button class="dchanger-diagnostics-delete" data-key="${escapeHtml(e?.key || e?.text || "")}" title="${escapeHtml(t("Delete this error"))}" style="
                   border:none; background:none; color:#cdbe91; cursor:pointer; padding:0 2px; font-size:14px; line-height:1;
                 ">&#x2715;</button>
               </div>
@@ -5128,7 +5100,7 @@
         .join("");
 
       body.innerHTML = `${headerHtml}${itemsHtml}`;
-      body.querySelectorAll(".rose-diagnostics-delete").forEach((btn) => {
+      body.querySelectorAll(".dchanger-diagnostics-delete").forEach((btn) => {
         btn.addEventListener("click", () => deleteDiagnostics([btn.dataset.key]));
       });
     }
@@ -5155,7 +5127,7 @@
   }
 
   function renderThresholdBenchmark() {
-    const el = document.getElementById("rose-threshold-benchmark");
+    const el = document.getElementById("dchanger-threshold-benchmark");
     if (!el) return;
 
     const stats = diagnosticsState.baseSkinStats;
@@ -5177,7 +5149,7 @@
     if (needsIncrease) {
       const recommended = `<span style="color:#c89b3c; font-weight:700;">${recS}s</span>`;
       html = `<span style="color:#c8aa6e;">${escapeHtml(t("Based on {games}, we recommend {value}", { games: label })).replace("{value}", recommended)}</span>`;
-      html += ` <button id="rose-apply-recommended-btn" style="
+      html += ` <button id="dchanger-apply-recommended-btn" style="
         margin-left:4px; padding:1px 8px; border:1px solid #463714; background:#1e2328;
         color:#cdbe91; cursor:pointer; font-family:'Beaufort for LOL',serif; font-size:11px;
         vertical-align:middle;
@@ -5188,7 +5160,7 @@
 
     el.innerHTML = html;
 
-    const applyBtn = document.getElementById("rose-apply-recommended-btn");
+    const applyBtn = document.getElementById("dchanger-apply-recommended-btn");
     if (applyBtn) {
       applyBtn.addEventListener("click", () => {
         if (bridge) {
@@ -5223,9 +5195,9 @@
     }
 
     // Restore last active item
-    const lastActiveNavItem = document.querySelector(".main-nav-bar > * > lol-uikit-navigation-item[roseLastActive]");
+    const lastActiveNavItem = document.querySelector(".main-nav-bar > * > lol-uikit-navigation-item[dchangerLastActive]");
     if (lastActiveNavItem) {
-      lastActiveNavItem.removeAttribute("roseLastActive")
+      lastActiveNavItem.removeAttribute("dchangerLastActive")
       lastActiveNavItem.setAttribute("active", true);
     }
 
@@ -5239,7 +5211,7 @@
 
     // If troubleshooting dialog is open, close it too (it is a separate fixed overlay).
     try {
-      const diag = document.getElementById("rose-diagnostics-dialog");
+      const diag = document.getElementById("dchanger-diagnostics-dialog");
       if (diag) diag.remove();
       diagnosticsDialog = null;
     } catch (e) {}
@@ -5293,12 +5265,12 @@
     cleanup();
   }
 
-  // Listen for open settings event from ROSE-UI
-  window.addEventListener("rose-open-settings", (e) => {
+  // Listen for open settings event from DCH-UI
+  window.addEventListener("dchanger-open-settings", (e) => {
     const navItem =
       e.detail?.navItem ||
       document.querySelector(
-        "lol-uikit-navigation-item.menu_item_Golden.Rose"
+        "lol-uikit-navigation-item.menu_item_Golden.D-Changer"
       );
     if (navItem) {
       // Toggle: if panel is already open, close it
@@ -5310,7 +5282,7 @@
     } else {
       log(
         "warn",
-        "Could not find Golden Rose nav item to position settings panel"
+        "Could not find Golden D-Changer nav item to position settings panel"
       );
     }
   });
@@ -5318,13 +5290,13 @@
   // Inject CSS
   function injectCSS() {
     // Remove existing CSS if it exists (to update with correct port)
-    const existingStyle = document.getElementById("rose-settings-panel-css");
+    const existingStyle = document.getElementById("dchanger-settings-panel-css");
     if (existingStyle) {
       existingStyle.remove();
     }
 
     const style = document.createElement("style");
-    style.id = "rose-settings-panel-css";
+    style.id = "dchanger-settings-panel-css";
     style.textContent = getCSSRules();
     document.head.appendChild(style);
   }
@@ -5408,7 +5380,7 @@
       bridge.subscribe("champion-skins-response", handleChampionSkinsResponse);
       bridge.subscribe("mod-import-started", showModImportLoading);
       bridge.subscribe("folder-opened-response", handleFolderOpenedResponse);
-      // A Rose that closes mid-import never answers it
+      // A D-Changer that closes mid-import never answers it
       bridge.onDisconnect(hideModImportLoading);
       bridge.subscribe("manage-categories-response", handleManageCategoriesResponse);
       bridge.subscribe("manage-champion-mods-response", handleManageSkinModsResponse);

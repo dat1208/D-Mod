@@ -45,8 +45,8 @@ class UpdateDialog(Win32Window):
 
     def __init__(self) -> None:
         super().__init__(
-            class_name="RoseUpdateDialog",
-            window_title=f"Rose {APP_VERSION}",
+            class_name="DChangerUpdateDialog",
+            window_title=f"D-Changer {APP_VERSION}",
             width=420,
             height=120,
             style=WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,

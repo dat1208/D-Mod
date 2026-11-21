@@ -174,3 +174,12 @@ backend/config.ini
 /d-changer.exe
 /uninstall.exe
 /dchanger-backend/
+
+# Tauri updater signing keys - NEVER commit the private key
+*.key
+*.key.pub
+dchanger.key
+!*.key.example
+# Editor/agent backup files - never commit
+*.bak-*
+*.bak

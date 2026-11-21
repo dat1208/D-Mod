@@ -1,8 +1,7 @@
 /**
- * @name Rose-SkinMonitor
- * @author Rose Team
+ * @name DCH-SkinMonitor
+ * @author D-Changer
  * @description Skin monitor for Pengu Loader
- * @link https://github.com/Alban1911/Rose-SkinMonitor
  */
 
 console.log("[SkinMonitor] Plugin loaded");
@@ -20,8 +19,8 @@ const RETRY_BASE_MS = 1000;
 const RETRY_MAX_MS = 30000;
 let BRIDGE_PORT = 50000; // Default, will be updated from /bridge-port endpoint
 let BRIDGE_URL = `ws://127.0.0.1:${BRIDGE_PORT}`;
-const BRIDGE_PORT_STORAGE_KEY = "rose_bridge_port";
-// Every port Rose's bridge can take (BRIDGE_FIRST_PORT, BRIDGE_PORT_COUNT in pengu/core/skin_monitor.py)
+const BRIDGE_PORT_STORAGE_KEY = "dchanger_bridge_port";
+// Every port D-Changer's bridge can take (BRIDGE_FIRST_PORT, BRIDGE_PORT_COUNT in pengu/core/skin_monitor.py)
 const DISCOVERY_START_PORT = 50000;
 const DISCOVERY_END_PORT = 50099;
 
@@ -204,7 +203,7 @@ function onReady(cb) {
   if (bridgeReady) cb();
 }
 
-// Called when an open connection to Rose closes (not on failed reconnect attempts)
+// Called when an open connection to D-Changer closes (not on failed reconnect attempts)
 function onDisconnect(cb) {
   _disconnectCallbacks.add(cb);
 }
@@ -261,10 +260,10 @@ function resyncSkinAfterConnect() {
       timestamp: Date.now(),
     });
   } catch (e) {
-    // Rose would inject without knowing the hovered skin: say why, once
+    // D-Changer would inject without knowing the hovered skin: say why, once
     if (!skinSyncErrorLogged) {
       skinSyncErrorLogged = true;
-      console.warn(`${LOG_PREFIX} Could not send the hovered skin to Rose:`, e);
+      console.warn(`${LOG_PREFIX} Could not send the hovered skin to D-Changer:`, e);
     }
   }
 }
@@ -282,9 +281,9 @@ function publishSkinState(payload) {
     hasChromas: Boolean(payload?.hasChromas),
     updatedAt: Date.now(),
   };
-  window.__roseSkinState = detail;
+  window.__dchangerSkinState = detail;
   try {
-    window.__roseCurrentSkin = detail.name;
+    window.__dchangerCurrentSkin = detail.name;
     // Update lastLoggedSkin to match ensuring consistency if payload brought a new name
     if (name) lastLoggedSkin = name;
   } catch {
@@ -314,10 +313,10 @@ function sendBridgePayload(obj) {
   }
 }
 
-// window.__roseBridge is exposed in start() after port discovery completes,
+// window.__dchangerBridge is exposed in start() after port discovery completes,
 // so that consumer plugins' waitForBridge() won't resolve until the port is known.
 if (typeof window !== "undefined") {
-  window.__roseBridgeEmit = sendBridgePayload; // backward compat (available early)
+  window.__dchangerBridgeEmit = sendBridgePayload; // backward compat (available early)
 }
 
 function sendToBridge(payload) {
@@ -382,7 +381,7 @@ function setupBridgeSocket() {
     resyncSkinAfterConnect();
     bridgeErrorLogged = false;
     bridgeSetupWarned = false;
-    window.__roseBridgeEmit = sendBridgePayload;
+    window.__dchangerBridgeEmit = sendBridgePayload;
     _notifyReady();
   });
 
@@ -405,42 +404,42 @@ function setupBridgeSocket() {
 
     if (data && data.type === "skin-mods-response") {
       window.dispatchEvent(
-        new CustomEvent("rose-custom-wheel-skin-mods", { detail: data })
+        new CustomEvent("dchanger-custom-wheel-skin-mods", { detail: data })
       );
       return;
     }
 
     if (data && data.type === "maps-response") {
       window.dispatchEvent(
-        new CustomEvent("rose-custom-wheel-maps", { detail: data })
+        new CustomEvent("dchanger-custom-wheel-maps", { detail: data })
       );
       return;
     }
 
     if (data && data.type === "fonts-response") {
       window.dispatchEvent(
-        new CustomEvent("rose-custom-wheel-fonts", { detail: data })
+        new CustomEvent("dchanger-custom-wheel-fonts", { detail: data })
       );
       return;
     }
 
     if (data && data.type === "announcers-response") {
       window.dispatchEvent(
-        new CustomEvent("rose-custom-wheel-announcers", { detail: data })
+        new CustomEvent("dchanger-custom-wheel-announcers", { detail: data })
       );
       return;
     }
 
     if (data && data.type === "category-mods-response") {
       window.dispatchEvent(
-        new CustomEvent("rose-custom-wheel-category-mods", { detail: data })
+        new CustomEvent("dchanger-custom-wheel-category-mods", { detail: data })
       );
       return;
     }
 
     if (data && data.type === "others-response") {
       window.dispatchEvent(
-        new CustomEvent("rose-custom-wheel-others", { detail: data })
+        new CustomEvent("dchanger-custom-wheel-others", { detail: data })
       );
       return;
     }
@@ -448,7 +447,7 @@ function setupBridgeSocket() {
     // Reset skin state when entering Lobby phase (so same skin in next game triggers detection)
     if (data && data.type === "champion-locked") {
       window.dispatchEvent(
-        new CustomEvent("rose-custom-wheel-champion-locked", { detail: data })
+        new CustomEvent("dchanger-custom-wheel-champion-locked", { detail: data })
       );
       return;
     }
@@ -456,7 +455,7 @@ function setupBridgeSocket() {
     if (data && data.type === "phase-change" && data.phase === "Lobby") {
       lastLoggedSkin = null;
       console.log(`${LOG_PREFIX} Reset skin state for new game (Lobby phase)`);
-      window.dispatchEvent(new CustomEvent("rose-custom-wheel-reset"));
+      window.dispatchEvent(new CustomEvent("dchanger-custom-wheel-reset"));
       return;
     }
 
@@ -672,7 +671,7 @@ async function start() {
   // Expose the shared bridge API now that the port is known.
   // Consumer plugins poll for this object via waitForBridge().
   if (typeof window !== "undefined") {
-    window.__roseBridge = Object.freeze({
+    window.__dchangerBridge = Object.freeze({
       send: sendBridgePayload,
       subscribe,
       unsubscribe,

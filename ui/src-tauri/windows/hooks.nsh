@@ -1,4 +1,4 @@
-; NSIS installer hooks for Dat-Rose.
+; NSIS installer hooks for D-Changer.
 ;
 ; The Python engine (dchanger-backend.exe) is a separate, elevated process the
 ; shell spawns through the UAC "runas" verb. The Tauri updater quits the window
@@ -12,8 +12,8 @@
 ; The installer is elevated, so taskkill can reach the elevated engine.
 
 !macro NSIS_HOOK_PREINSTALL
-  DetailPrint "Stopping Dat-Rose and its engine..."
-  nsExec::Exec 'taskkill /F /IM Dat-Rose.exe'
+  DetailPrint "Stopping D-Changer and its engine..."
+  nsExec::Exec 'taskkill /F /IM d-changer.exe'
   Pop $0
 
   ; Ask the engine to shut down cleanly. Best effort: a missing engine is fine.

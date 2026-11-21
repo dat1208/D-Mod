@@ -23,6 +23,7 @@ from .injector import SkinInjector
 from ..classic import is_classic_game_mode
 from ..game.game_monitor import GameMonitor
 from ..config.threshold_manager import ThresholdManager
+from ..tools.patcher import LTK_PATCHER_HOST
 
 log = get_logger()
 
@@ -33,10 +34,21 @@ class InjectionManager:
     def __init__(self, tools_dir: Path = None, mods_dir: Path = None, zips_dir: Path = None, game_dir: Optional[Path] = None, shared_state=None):
         self.tools_dir = tools_dir
         self.mods_dir = mods_dir
+        # The manager is constructed with shared_state only (see
+        # main/core/initialization.py), so zips_dir arrived as None and the LTK
+        # handoff failed on every skin with "argument should be a str or an
+        # os.PathLike object ... not 'NoneType'" -- the whole point of the
+        # handoff is to find the archive in the skin library, so default it the
+        # same way SkinInjector does instead of leaving it unset.
+        if zips_dir is None:
+            from utils.core.paths import get_skins_dir
+            zips_dir = get_skins_dir()
         self.zips_dir = zips_dir
         self.game_dir = game_dir
         self.shared_state = shared_state  # Reference to shared state for accessing UISkinThread
         self.injector = None  # Will be initialized lazily
+        self._ltk_runtime = None
+        self._ltk_archive_path = None
         self.last_skin_name = None
         self.last_injection_time = 0.0
         self.injection_lock = threading.Lock()
@@ -94,6 +106,66 @@ class InjectionManager:
                         )
                         self._initialized = False
     
+    def _ltk_enabled(self):
+        """Whether skin loading goes through LTK Manager.
+
+        LTK is the only backend this build ships: the LTK patcher host and
+        its overlay are the single pipeline, and no CSLOL binary is bundled,
+        so there is no second path to fall back to. A config that still says
+        "rose" is treated as LTK rather than silently doing nothing.
+        """
+        from config import get_config_option
+        backend = (get_config_option("General", "injection_backend", "ltk") or "ltk").strip().lower()
+        if backend != "ltk":
+            log.warning(
+                "[INJECT] injection_backend=%r is not supported in this build; using LTK Manager",
+                backend,
+            )
+        return True
+
+    def _ltk_selected_archive(self, skin_name, champion_id, chroma_id=None, classic=False):
+        from injection.ltk_handoff import resolve_skin_archive
+        # self.injector is created lazily and is None until _ensure_initialized()
+        # runs, and the LTK handoff is reached before that on a cold start. Reading
+        # .classic_dir off it raised "'NoneType' object has no attribute
+        # 'classic_dir'" and every skin failed to prepare. The classic library is
+        # only consulted in classic mode, so resolve it on demand and stay safe
+        # when the injector is still absent.
+        classic_dir = None
+        if classic:
+            injector = self.injector
+            if injector is not None:
+                classic_dir = getattr(injector, "classic_dir", None)
+        return resolve_skin_archive(self.zips_dir, skin_name, champion_id, chroma_id,
+                                    classic=classic, classic_dir=classic_dir)
+
+    def _ltk_prepare(self, archive):
+        from injection.ltk_runtime import LtkRuntime
+        runtime = self._ltk_runtime
+        if runtime is None:
+            runtime = LtkRuntime()
+            self._ltk_runtime = runtime
+        # Every distinct archive must reach LTK, whether or not a patcher is
+        # already running: that is what makes "pick a skin, patch that skin"
+        # true for the second and later choices, not just the first one.
+        if self._ltk_archive_path != archive:
+            runtime.prepare(archive)
+            self._ltk_archive_path = archive
+        elif not runtime.running():
+            runtime.prepare(archive)
+        return runtime
+
+    def _ltk_prepare_countdown(self):
+        from ..classic import is_classic_game_mode
+        state = self.shared_state
+        champion = getattr(state, "locked_champ_id", None) or getattr(state, "hovered_champ_id", None)
+        skin = getattr(state, "selected_chroma_id", None) or getattr(state, "last_hovered_skin_id", None)
+        if not champion or not skin or int(skin) == int(champion) * 1000:
+            return
+        archive = self._ltk_selected_archive(f"skin_{skin}", int(champion),
+            classic=is_classic_game_mode(getattr(state, "current_game_mode", None)))
+        self._ltk_prepare(archive)
+
     def start_patcher_in_background(self):
         """Start the LTK patcher when the loadout countdown begins.
 
@@ -108,30 +180,29 @@ class InjectionManager:
 
         def start():
             try:
-                self.injector.overlay_manager.start_patcher_early()
+                if self._ltk_enabled():
+                    self._ltk_prepare_countdown()
             except Exception as e:
-                log.warning(f"[INJECT] Could not start the LTK patcher early: {e}")
+                log.error("[LTK] Could not prepare patcher before game launch: %s", e)
 
         threading.Thread(target=start, daemon=True, name="LTKPatcherStart").start()
 
     def discard_early_patcher(self):
-        """Stop the patcher started for a countdown that ends without an injection."""
-        if self.injector:
-            self.injector.overlay_manager.discard_early_patcher()
+        """Nothing to discard: LTK owns its own patcher lifecycle."""
+        return  # The cslol overlay host is no longer bundled.
 
     def _start_monitor(self):
         """Start game monitor - watches for game and suspends it"""
         self.game_monitor.start()
         # The LTK patcher only overlays games launched after it started
         # scanning: start it now if the countdown did not already
-        if self.injector:
-            self.injector.overlay_manager.start_patcher_early()
+        if self._ltk_enabled():
+            self._ltk_prepare_countdown()
     
     def _stop_monitor(self):
         """Stop the game monitor"""
         self.game_monitor.stop()
-        if self.injector:
-            self.injector.overlay_manager.discard_early_patcher()
+        # The cslol overlay host is no longer bundled; LTK keeps its own patcher.
     
     def _get_suspended_game_process(self):
         """Get the currently suspended game process (if any)"""
@@ -178,6 +249,8 @@ class InjectionManager:
         if not self._initialized or self.injector is None or self.injector.game_dir is None:
             return
             
+        if self._ltk_enabled():
+            return  # In-client loadout ticker handles the selected skin.
         with self.injection_lock:
             current_time = time.time()
 
@@ -274,6 +347,19 @@ class InjectionManager:
                 pass  # Not a numeric skin ID, continue with normal injection
 
         classic = is_classic_game_mode(getattr(self.shared_state, "current_game_mode", None))
+        if self._ltk_enabled():
+            try:
+                archive = self._ltk_selected_archive(skin_name, champion_id, chroma_id, classic)
+                self._ltk_prepare(archive)
+                self.resume_if_suspended()
+                log.info("[LTK] Skin %s queued in LTK Manager (attachment not yet confirmed)", skin_name)
+                self.last_skin_name = skin_name
+                return True
+            except Exception as exc:
+                self.resume_if_suspended()
+                log.error("[LTK] Could not prepare skin %s: %s", skin_name, exc)
+                report_issue("LTK_RUNTIME_FAILED", "error", f"LTK could not prepare skin: {exc}")
+                return False
 
         def inject(extra_mods_callback):
             # Pass the manager instance so injector can call resume_game()
@@ -416,7 +502,13 @@ class InjectionManager:
         if not self._initialized:
             return True  # Nothing to clean if not initialized
         
+        if self._ltk_runtime is not None:
+            self._ltk_runtime.close()
+            self._ltk_runtime = None
+            self._ltk_archive_path = None
         with self.injection_lock:
+            if self.injector is None:
+                return True
             return self.injector.clean_system()
     
     def initialize_when_ready(self):
@@ -498,14 +590,14 @@ class InjectionManager:
             log.warning(f"[INJECT] Failed to stop injection: {e}")
 
     def kill_all_modtools_processes(self):
-        """Kill all mod-tools.exe processes (for application shutdown)"""
+        """Kill the LTK patcher host processes (for application shutdown)"""
         if not self._initialized:
             return  # Nothing to kill if not initialized
         
         try:
             self.injector.kill_all_modtools_processes()
         except Exception as e:
-            log.warning(f"[INJECT] Failed to kill mod-tools.exe processes: {e}")
+            log.warning(f"[INJECT] Failed to kill {LTK_PATCHER_HOST} processes: {e}")
     
     def _get_injection_dir(self) -> Path:
         """Get the injection directory path (works in both frozen and development environments)"""

@@ -16,7 +16,7 @@ from .patcher import LTK_PATCHER_DLL, LTK_PATCHER_HOST
 
 
 class ToolsManager:
-    """Manages CSLOL tools detection and validation"""
+    """Manages LTK tools detection and validation"""
     
     def __init__(self, tools_dir: Path):
         self.tools_dir = tools_dir
@@ -24,8 +24,6 @@ class ToolsManager:
     def check_tools_available(self) -> bool:
         """Check if the runtime injection tool is present."""
         required_tools = [
-            "mod-tools.exe",
-            "cslol-dll.dll",  # Rose's stand-in; mod-tools.exe will not start without it
             LTK_PATCHER_HOST,
             LTK_PATCHER_DLL,
         ]
@@ -42,10 +40,12 @@ class ToolsManager:
         return True
     
     def detect_tools(self) -> Dict[str, Path]:
-        """Detect runtime injection tools."""
-        tools = {
-            "modtools": self.tools_dir / "mod-tools.exe",
-        }
+        """Return the runtime injection tools that are actually bundled.
+
+        The CSLOL binary set is gone; LTK is the only injector in this build,
+        so the LTK host is the tool to report.
+        """
+        tools = {"modtools": self.tools_dir / LTK_PATCHER_HOST}
         for name, exe in tools.items():
             if not exe.exists():
                 log.error(f"[INJECTOR] Missing tool: {exe}")
