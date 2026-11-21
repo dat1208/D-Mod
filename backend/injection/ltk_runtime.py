@@ -264,6 +264,8 @@ class LtkRuntime:
         # One countdown = one sanitise. The ticker re-arms prepare() every
         # second; the stale-state sweep must not repeat (see prepare()).
         self._sanitised_for_countdown = False
+        # Likewise for the library sweep: once per process is enough.
+        self._health_check_off_done = False
 
     def _bridge_ready(self) -> LtkBridge:
         if self._bridge and self._bridge.alive():
@@ -284,6 +286,28 @@ class LtkRuntime:
                 if time.monotonic() >= deadline:
                     raise LtkRuntimeError(f"LTK browser/library is unavailable: {exc}") from exc
                 time.sleep(0.5)
+
+    def _health_check_off_once(self, bridge: LtkBridge) -> None:
+        """Stop LTK Manager re-checking every mod on each overlay build.
+
+        With "Automatically check mods" on, every build sweeps the whole
+        library first: the 18:41 session spent 5.12s sweeping one mod while
+        Map11.wad.client (2.5 GB) was being written, and the build took 8.07s
+        against 0.17s once the sweep was out of the way. The sweep decides
+        nothing a skin change depends on, so it is turned off for this run.
+        Failure is not fatal: a build that includes a sweep still works, just
+        slower.
+        """
+        if self._health_check_off_done:
+            return
+        self._health_check_off_done = True
+        try:
+            result = bridge.health_check_off()
+            changed = (result.get("response", {}).get("value") or {}).get("changed")
+            log.info("[LTK] Mod auto-check turned off (was %s); overlay builds no "
+                     "longer sweep the library first", "on" if changed else "off")
+        except (BridgeUnavailable, BridgeCommandError) as exc:
+            log.debug("[LTK] Could not turn off mod auto-check: %s", exc)
 
     def _activate(self, bridge: LtkBridge, archive: Path) -> str:
         archive = Path(archive)
@@ -364,6 +388,7 @@ class LtkRuntime:
                     preflight.sanitize()
                     self._sanitised_for_countdown = True
                 bridge = self._bridge_ready()
+                self._health_check_off_once(bridge)
                 mod_id = self._activate(bridge, archive)
                 self._ensure_patcher(bridge, mod_id)
                 self._confirm_patcher(bridge, mod_id)

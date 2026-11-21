@@ -20,6 +20,7 @@ from ..websocket.websocket_event_handler import WebSocketEventHandler
 from ..handlers.champion_lock_handler import ChampionLockHandler
 from ..handlers.game_mode_detector import GameModeDetector
 from ..utilities.timer_manager import TimerManager
+from ..utilities.champselect_prewarm import ChampSelectPrewarm
 
 log = get_logger()
 
@@ -57,6 +58,11 @@ class WSEventThread(threading.Thread):
         self.timer_manager = TimerManager(
             lcu, state, timer_hz, fallback_ms, injection_manager, skin_scraper
         )
+        # Builds the overlay during ChampSelect instead of inside the nine
+        # second countdown; see champselect_prewarm.py for why.
+        self.prewarm = (
+            ChampSelectPrewarm(injection_manager) if injection_manager is not None else None
+        )
         self.event_handler = WebSocketEventHandler(
             lcu, state, self.champion_lock_handler, self.game_mode_detector, self.timer_manager, injection_manager,
             swiftplay_handler=swiftplay_handler,
@@ -74,6 +80,9 @@ class WSEventThread(threading.Thread):
     
     def run(self):
         """Main WebSocket loop"""
+        if self.prewarm is not None and not self.prewarm.is_alive():
+            self.prewarm.start()
+            log.debug("[PREWARM] ChampSelect prewarm thread started")
         self.connection.run()
     
     def _on_message(self, ws, msg):
@@ -82,6 +91,8 @@ class WSEventThread(threading.Thread):
     
     def stop(self):
         """Stop the WebSocket thread gracefully"""
+        if self.prewarm is not None:
+            self.prewarm.stop()
         self.connection.stop()
     
     # Backward compatibility properties
