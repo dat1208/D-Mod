@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 from injection.tools.patcher import LTK_PATCHER_DLL, read_dll_eol, read_game_build
+from injection.tools import patcher_update
 from updater import ltk_patcher
 from utils.core.issue_reporter import report_issue
 from utils.core.logging import get_logger, get_named_logger
@@ -68,7 +69,7 @@ def _warn_if_expired(tools_dir: Path, game_dir: Path | None) -> None:
         "error",
         f"The LTK patcher expired on {eol_s}, and this game build is from {build_s}.",
         hint="Injection will not work until D-Changer ships a newer patcher. "
-             "Update the app; if it is already current, report it with rose_*.log.",
+             "Update the app; if it is already current, report it with dchanger_*.log.",
     )
 
 
@@ -90,14 +91,50 @@ class PatcherSequence:
         dialog.set_marquee(True)
         dialog.pump_messages()
 
+        from config import get_config_option
+        if (get_config_option("General", "injection_backend", "rose") or "rose").lower() == "ltk":
+            # The manager owns patcher delivery in this mode. Never install
+            # another host/DLL pair or start Rose's independent patcher.
+            dialog.set_status("LTK Manager handles the skin patcher.")
+            dialog.set_marquee(False)
+            dialog.pump_messages()
+            return True
         tools_dir = _tools_dir()
         try:
             game_dir = _game_dir()
             force = ltk_patcher.patcher_is_stale(tools_dir, game_dir)
+            eol = read_dll_eol(tools_dir / LTK_PATCHER_DLL)
+            build = read_game_build(game_dir) if game_dir else None
+            already_covered = (
+                eol is not None and build is not None and build <= eol
+                and all((tools_dir / name).is_file() for name in ltk_patcher.PATCHER_FILES)
+            )
             if force:
                 dialog.set_status("Updating the LTK patcher...")
                 dialog.pump_messages()
-            ltk_patcher.fetch_patcher(tools_dir, force=force)
+            # A known-expired pin must never replace a usable newer DLL. The
+            # pinned source DLL is unsigned, so it cannot pass Authenticode on
+            # Windows; obtain a verified delivery from LTK Manager instead.
+            if already_covered:
+                updater_log.info("Installed LTK patcher covers the game build; keeping it.")
+            elif force:
+                refreshed = patcher_update.refresh_patcher(tools_dir, game_dir)
+                if not refreshed:
+                    raise ltk_patcher.PatcherInstallError(
+                        "no verified LTK Manager patcher covers this game build"
+                    )
+            else:
+                # LTK Manager's delivery is the only source that is Authenticode
+                # signed, so ask it first: the DLL pinned in the repository is
+                # unsigned, and the signature check rejects it every time.
+                if not patcher_update.refresh_patcher(tools_dir, game_dir):
+                    try:
+                        ltk_patcher.fetch_patcher(tools_dir)
+                    except ltk_patcher.PatcherInstallError as exc:
+                        raise ltk_patcher.PatcherInstallError(
+                            "no usable LTK patcher: the LTK Manager delivery failed "
+                            f"and the pinned fetch was rejected ({exc})"
+                        ) from exc
             _warn_if_expired(tools_dir, game_dir)
             updater_log.info("LTK patcher is ready.")
             dialog.set_status("Skin patcher ready.")

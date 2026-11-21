@@ -24,6 +24,7 @@ Manager itself downloaded and signed, copied from the user's own machine.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import subprocess
@@ -92,10 +93,66 @@ def staged_dlls() -> list[Path]:
     return sorted(found, key=lambda p: p.stat().st_mtime, reverse=True)
 
 
+def _registry_install_locations() -> list:
+    """Install locations the LTK Manager uninstall entry reports.
+
+    The NSIS installer honours a directory the machine already used (a fresh
+    install here landed in "LTK Manager Probe2", not "LTK Manager"), so the
+    registry, not a hardcoded path, is the authority. A missing key or an
+    unreadable hive is not an error: the caller falls back to the defaults.
+    """
+    dirs = []
+    if sys.platform != "win32":
+        return dirs
+    try:
+        import winreg
+    except ImportError:
+        return dirs
+    roots = (
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+        (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+    )
+    for hive, path in roots:
+        try:
+            root = winreg.OpenKey(hive, path)
+        except OSError:
+            continue
+        with root:
+            try:
+                count = winreg.QueryInfoKey(root)[0]
+            except OSError:
+                continue
+            for index in range(count):
+                try:
+                    entry = winreg.OpenKey(root, winreg.EnumKey(root, index))
+                except OSError:
+                    continue
+                with entry:
+                    try:
+                        display = str(winreg.QueryValueEx(entry, "DisplayName")[0])
+                    except OSError:
+                        continue
+                    if "ltk manager" not in display.lower():
+                        continue
+                    try:
+                        location = str(winreg.QueryValueEx(entry, "InstallLocation")[0])
+                    except OSError:
+                        continue
+                    location = location.strip().strip('"').strip()
+                    if location:
+                        dirs.append(Path(location))
+    return dirs
+
+
 def _manager_exe() -> Optional[Path]:
     """Return the installed LTK Manager executable, if there is one."""
-    for candidate in (LTK_MANAGER_INSTALL_DIR / LTK_MANAGER_EXE,
-                      Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "LTK Manager" / LTK_MANAGER_EXE):
+    candidates = [d / LTK_MANAGER_EXE for d in _registry_install_locations()]
+    candidates += [
+        LTK_MANAGER_INSTALL_DIR / LTK_MANAGER_EXE,
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "LTK Manager" / LTK_MANAGER_EXE,
+    ]
+    for candidate in candidates:
         if candidate.is_file():
             return candidate
     return None
@@ -144,18 +201,71 @@ def _install_manager(installer: Path) -> Path:
     if result.returncode != 0:
         raise PatcherUpdateError(f"the installer exited with code {result.returncode}")
 
-    exe = _manager_exe()
-    if exe is None:
-        raise PatcherUpdateError("LTK Manager was installed but its executable was not found")
-    return exe
+    # The uninstall key is written at the end of the install; poll briefly so a
+    # slow disk or an antivirus scan does not turn a good install into a
+    # failure (and into a 23 MB re-download on the next start).
+    deadline = time.monotonic() + 30.0
+    while time.monotonic() < deadline:
+        exe = _manager_exe()
+        if exe is not None:
+            return exe
+        time.sleep(1.0)
+    raise PatcherUpdateError("LTK Manager was installed but its executable was not found")
+
+
+def _manager_processes() -> list:
+    """Every running LTK Manager process, by executable name."""
+    if sys.platform != "win32":
+        return []
+    import psutil
+
+    found = []
+    for proc in psutil.process_iter(["name"]):
+        try:
+            if proc.info.get("name", "").lower() == LTK_MANAGER_EXE:
+                found.append(proc)
+        except psutil.Error:
+            continue
+    return found
+
+
+def _close_managers(keep_alive_s: float = 0.0) -> None:
+    """Terminate every LTK Manager process, allowing it to finish its work."""
+    if keep_alive_s:
+        time.sleep(keep_alive_s)
+    victims = _manager_processes()
+    if not victims:
+        return
+    log.info("[PATCHER] Closing LTK Manager")
+    for proc in victims:
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+    for proc in victims:
+        try:
+            proc.wait(timeout=15)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
 
 
 def _run_manager_until_dll(exe: Path, timeout: float) -> Optional[Path]:
     """Run LTK Manager until it stages a DLL, then close it.
 
+    LTK Manager 1.33 relaunches itself as a child of the Windows shell and the
+    process this function starts exits about half a second later (its log says
+    "Restarted the manager as a child of the shell"). Waiting on that handle
+    therefore reports a failure while the real instance is still downloading,
+    so the poll looks at the staging directory and at any ltk-manager.exe that
+    is still running, not at the handle.
+
     Returns the staged DLL, or None if none appeared in time.
     """
     log.info("[PATCHER] Starting LTK Manager so it downloads the patcher DLL")
+    _close_managers()
     try:
         proc = subprocess.Popen(
             [str(exe)],
@@ -172,20 +282,51 @@ def _run_manager_until_dll(exe: Path, timeout: float) -> Optional[Path]:
             staged = staged_dlls()
             if staged:
                 return staged[0]
-            if proc.poll() is not None:
-                # It closed on its own; one last look before giving up
+            # The started handle dying is expected (shell relaunch); only give
+            # up once no LTK Manager process is left at all, and even then look
+            # one final time in case it staged the DLL just before exiting.
+            alive = proc.poll() is None or bool(_manager_processes())
+            if not alive:
                 staged = staged_dlls()
                 return staged[0] if staged else None
             time.sleep(1.0)
         return None
     finally:
-        if proc.poll() is None:
-            log.info("[PATCHER] Closing LTK Manager")
-            try:
-                proc.terminate()
-                proc.wait(timeout=15)
-            except (OSError, subprocess.SubprocessError):
-                proc.kill()
+        _close_managers(keep_alive_s=0.0)
+
+
+def _require_valid_signature(path: Path) -> None:
+    """Require a valid Windows Authenticode signature for an upstream DLL."""
+    if sys.platform != "win32":
+        return
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+         "$s=Get-AuthenticodeSignature -LiteralPath $env:DCHANGER_SIGNED_FILE; "
+         "Write-Output $s.Status"],
+        env={**os.environ, "DCHANGER_SIGNED_FILE": str(path)},
+        capture_output=True, text=True, timeout=60,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), check=False,
+    )
+    if result.returncode != 0 or result.stdout.strip() != "Valid":
+        raise PatcherUpdateError(
+            f"{path.name} has no valid Authenticode signature "
+            f"({result.stdout.strip() or result.stderr.strip() or 'no status'})"
+        )
+
+
+def _verify_staged_dll(dll: Path) -> None:
+    """Reject staged bytes not attested by the delivery manifest and Windows."""
+    root = dll.parent.parent
+    if dll.name != LTK_PATCHER_DLL or dll.parent.parent.name != "patcher":
+        raise PatcherUpdateError("DLL is not in the LTK Manager staging layout")
+    if not (root / "delivery.json").is_file():
+        raise PatcherUpdateError("LTK Manager delivery manifest is missing")
+    digest = hashlib.sha256(dll.read_bytes()).hexdigest()
+    if dll.parent.name.lower() != digest:
+        raise PatcherUpdateError("staged DLL does not match its SHA-256 directory")
+    if read_dll_eol(dll) is None:
+        raise PatcherUpdateError("staged DLL has no matching EOL manifest entry")
+    _require_valid_signature(dll)
 
 
 def _backup(target: Path) -> None:
@@ -199,15 +340,41 @@ def _backup(target: Path) -> None:
         log.warning(f"[PATCHER] Could not back up {target.name}: {e}")
 
 
+def _host_candidates(dll: Path) -> list:
+    """Places a matching ltk_patcher_host.exe can come from, best first.
+
+    LTK Manager 1.33 stages only the DLL under the SHA-256 directory, so the
+    host beside it is usually absent. The host ships inside the manager's own
+    install directory (same build that delivered the DLL) and is also written
+    next to a manager installed by an older release, so both are tried.
+    """
+    found = [dll.parent / LTK_PATCHER_HOST]
+    exe = _manager_exe()
+    if exe is not None:
+        found.append(exe.parent / LTK_PATCHER_HOST)
+    found.append(LTK_MANAGER_INSTALL_DIR / LTK_PATCHER_HOST)
+    return found
+
+
 def _install_pair(dll: Path, tools_dir: Path) -> None:
-    """Copy a staged DLL (and the host beside it) into tools_dir."""
-    for name, source in ((LTK_PATCHER_DLL, dll), (LTK_PATCHER_HOST, dll.parent / LTK_PATCHER_HOST)):
-        if not source.is_file():
-            continue
+    """Copy a staged DLL and a matching host into tools_dir."""
+    sources = [(LTK_PATCHER_DLL, [dll])]
+    for candidate in _host_candidates(dll):
+        if candidate.is_file():
+            sources.append((LTK_PATCHER_HOST, [candidate]))
+            break
+    else:
+        log.warning(
+            "[PATCHER] No ltk_patcher_host.exe was found beside the staged DLL "
+            "or in the LTK Manager install; the previous host is kept"
+        )
+
+    for name, candidates in sources:
+        source = candidates[0]
         target = tools_dir / name
         _backup(target)
         shutil.copy2(source, target)
-        log.debug(f"[PATCHER] Installed {name}")
+        log.info(f"[PATCHER] Installed {name} from {source.parent}")
 
     # The staging manifest stays behind, so record the date beside the copy:
     # without it the copied DLL's end of life cannot be read back.
@@ -233,8 +400,8 @@ def refresh_patcher(tools_dir: Path, game_dir: Optional[Path] = None) -> bool:
     installed_eol = read_dll_eol(dll) if dll.is_file() else None
     game_build = read_game_build(game_dir) if game_dir else None
 
-    # Nothing to do while the installed DLL still covers the game. An unknown
-    # EOL or build means "cannot tell", and the DLL reports a refusal itself.
+    # Do not replace an already adequate DLL; an unknown build still warrants
+    # checking when the installed date cannot be determined.
     if installed_eol is not None and game_build is not None and game_build <= installed_eol:
         log.debug("[PATCHER] The installed LTK patcher covers this game build")
         return False
@@ -253,8 +420,9 @@ def refresh_patcher(tools_dir: Path, game_dir: Optional[Path] = None) -> bool:
         else:
             staged_dll = staged[0]
 
+        _verify_staged_dll(staged_dll)
         new_eol = read_dll_eol(staged_dll)
-        if game_build is not None and new_eol is not None and new_eol < game_build:
+        if game_build is not None and new_eol < game_build:
             raise PatcherUpdateError(
                 "the newest LTK patcher is still older than this game build "
                 f"({time.strftime('%Y-%m-%d %H:%M', time.localtime(new_eol))})"
