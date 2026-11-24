@@ -184,11 +184,29 @@ def classify_archive(archive):
     return {"kind": "ok", "status": "ok", "archive": str(archive)}
 
 
+def _skin_id_of(path):
+    # Installed layouts are skins/<champion>/<group>/<skinId>/<skinId>.fantome,
+    # so the skin id is the folder holding the archive, never the file name.
+    from pathlib import Path
+
+    folder = Path(path).parent.name
+    try:
+        value = int(folder)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
 def classify_archives(paths):
-    # Classify many archives, skipping the healthy ones.
+    # Classify many archives, skipping the healthy ones. Each verdict carries
+    # the skinId the picker and the desktop list key on.
     verdicts = {}
     for path in paths:
         verdict = classify_archive(path)
-        if verdict.get("kind") != "ok":
-            verdicts[str(path)] = verdict
+        if verdict.get("kind") == "ok":
+            continue
+        skin_id = _skin_id_of(path)
+        if skin_id is not None:
+            verdict["skinId"] = skin_id
+        verdicts[str(path)] = verdict
     return verdicts

@@ -24,7 +24,7 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from config import APP_NAME, APP_VERSION
 from utils.core.logging import get_logger
@@ -58,6 +58,15 @@ class ApiContext:
         self.app_status = app_status
         self.injection_manager = injection_manager
         self.startup = startup
+        # Query string of the request being served. The server sets this
+        # before calling a route: handlers take only the context, so there is
+        # nowhere else to put `?champion=238`.
+        self.query: dict[str, list[str]] = {}
+        self.path = "/"
+
+    def query_one(self, key: str, default: str = "") -> str:
+        values = self.query.get(key) or []
+        return values[0] if values else default
 
 
 # ── Route handlers ──────────────────────────────────────────────────────────
@@ -215,17 +224,33 @@ def _skins_preflight(ctx: ApiContext) -> dict:
     from utils.core.paths import get_skins_dir
 
     root = get_skins_dir()
-    champion = str(ctx.query.get("champion", "") or "").strip()
+    champion = ctx.query_one("champion").strip()
     try:
-        limit = max(0, int(ctx.query.get("limit", 400)))
+        limit = max(0, int(ctx.query_one("limit", "400")))
     except (TypeError, ValueError):
         limit = 400
     base = root / champion if champion else root
     warnings = []
     if base.is_dir():
-        archives = sorted(base.rglob("*.fantome")) + sorted(base.rglob("*.modpkg"))
+        # Only the archives that install a skin: one .fantome per skin folder.
+        # Every other archive in the tree is a mod for an existing skin and
+        # cannot be picked on its own, so listing it would inflate the count
+        # without telling the player anything they can act on.
+        archives = []
+        for path in base.rglob("*"):
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in (".fantome", ".modpkg"):
+                continue
+            if path.stem != path.parent.name:
+                continue
+            archives.append(path)
+        archives.sort()
         found = classify_archives(archives[:limit])
-        warnings = list(found.values())
+        warnings = sorted(
+            found.values(),
+            key=lambda w: (w.get("kind") != "blocked", str(w.get("skinId") or "")),
+        )
     blocked = sum(1 for w in warnings if w.get("kind") == "blocked")
     no_audio = sum(1 for w in warnings if w.get("kind") == "no_audio")
     return {
@@ -325,13 +350,28 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler API)
         if not self._guard_origin():
             return
-        path = urlparse(self.path).path.rstrip("/") or "/"
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
         handler = _GET_ROUTES.get(path)
         if handler is None:
             self._send_json({"error": "not found"}, status=404)
             return
+        # Handlers take only the context, so the query string is published on
+        # it for the duration of this call. The server is threaded, so each
+        # request carries its own context to keep two scans from reading each
+        # other's parameters.
+        context = ApiContext(
+            state=self.context.state,
+            lcu=self.context.lcu,
+            skin_scraper=self.context.skin_scraper,
+            app_status=self.context.app_status,
+            injection_manager=self.context.injection_manager,
+            startup=self.context.startup,
+        )
+        context.query = parse_qs(parsed.query)
+        context.path = path
         try:
-            self._send_json(handler(self.context))
+            self._send_json(handler(context))
         except Exception as e:  # noqa: BLE001 - report, do not crash the server
             log.warning(f"[api] GET {path} failed: {e}")
             self._send_json({"error": str(e)}, status=500)
