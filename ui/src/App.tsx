@@ -5,11 +5,12 @@ import { Profiles } from "./views/Profiles";
 import { Diagnostics } from "./views/Diagnostics";
 import { Logs } from "./views/Logs";
 import { FailedSkins } from "./views/FailedSkins";
+import { BrokenSkins } from "./views/BrokenSkins";
 import { checkForUpdate, installUpdate, type UpdateInfo } from "./updater";
 import { useI18n } from "./i18n";
 import logo from "./assets/logo.png";
 
-type Tab = "dashboard" | "profiles" | "failed" | "diagnostics" | "logs";
+type Tab = "dashboard" | "profiles" | "failed" | "broken" | "diagnostics" | "logs";
 
 // Inline 18px stroke icons so the collapsed rail reads at a glance without
 // pulling in an icon package.
@@ -62,6 +63,7 @@ const NAV: { id: Tab; label: string; icon: ReactNode }[] = [
   { id: "dashboard", label: "Dashboard", icon: icons.dashboard },
   { id: "profiles", label: "Profiles", icon: icons.profiles },
   { id: "failed", label: "Failed skins", icon: icons.failed },
+  { id: "broken", label: "Broken skins", icon: icons.failed },
   { id: "diagnostics", label: "Diagnostics", icon: icons.diagnostics },
   { id: "logs", label: "Logs", icon: icons.logs },
 ];
@@ -184,6 +186,7 @@ export function App() {
           {tab === "dashboard" && <Dashboard status={status} error={error} />}
           {tab === "profiles" && <Profiles />}
           {tab === "failed" && <FailedSkins />}
+          {tab === "broken" && <BrokenSkins />}
           {tab === "diagnostics" && <Diagnostics />}
           {tab === "logs" && <Logs />}
         </main>

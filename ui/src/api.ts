@@ -70,6 +70,22 @@ export interface FailedSkinsResponse {
   files: FailedSkin[];
 }
 
+export interface SkinWarning {
+  code: string;
+  status: string;
+  archive: string;
+  champion: string | null;
+  skin_numbers: number[];
+  events: string[];
+  member: string | null;
+  message: string;
+}
+
+export interface SkinPreflightResponse {
+  warnings: SkinWarning[];
+  count: number;
+}
+
 // A failed invoke rejects with the Rust error string; normalise it to Error.
 function toError(e: unknown): Error {
   return e instanceof Error ? e : new Error(String(e));
@@ -98,6 +114,10 @@ export const api = {
   updates: () => get<Updates>("/api/updates"),
   diagnostics: () => get<DiagnosticsResponse>("/api/diagnostics"),
   failedSkins: () => get<FailedSkinsResponse>("/api/skins/failed"),
+  skinPreflight: (champion = "") =>
+    get<SkinPreflightResponse>(
+      `/api/skins/preflight${champion ? `?champion=${encodeURIComponent(champion)}` : ""}`,
+    ),
   retrySkin: (path: string) =>
     post<{ retried: boolean; path: string }>("/api/skins/retry", { path }),
   saveProfile: (puuid: string, name: string) =>

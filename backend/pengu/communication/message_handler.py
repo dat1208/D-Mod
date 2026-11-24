@@ -254,6 +254,8 @@ class MessageHandler:
             self._handle_open_mods_folder(payload)
         elif payload_type == "request-skin-mods":
             self._handle_request_skin_mods(payload)
+        elif payload_type == "request-skin-preflight":
+            self._handle_request_skin_preflight(payload)
         elif payload_type == "request-manage-categories":
             self._handle_request_manage_categories(payload)
         elif payload_type == "request-manage-champion-mods":
@@ -1062,6 +1064,36 @@ class MessageHandler:
             "timestamp": int(time.time() * 1000),
         }
         self._send_response(json.dumps(response_payload))
+
+    def _handle_request_skin_preflight(self, payload: dict) -> None:
+        """Answer which installed skins LTK Manager is expected to refuse.
+
+        The skin picker asks this once per champion so a broken skin can be
+        marked before the player queues. LTK only reports c0000229 after it
+        builds the overlay, which is far too late; the archive answers the
+        same question offline (see injection.skin_preflight).
+        """
+        from injection.skin_preflight import scan_archive
+        from utils.core.paths import get_skins_dir
+
+        champion = str(payload.get("championId") or "").strip()
+        root = get_skins_dir()
+        base = root / champion if champion else root
+        warnings = []
+        if champion and base.is_dir():
+            archives = sorted(base.rglob("*.fantome"))[:200] + sorted(base.rglob("*.modpkg"))[:200]
+            for archive in archives:
+                warning = scan_archive(archive)
+                if warning is not None:
+                    entry = warning.as_dict()
+                    entry["skinId"] = archive.parent.name
+                    warnings.append(entry)
+        self._send_response(json.dumps({
+            "type": "skin-preflight",
+            "championId": champion,
+            "warnings": warnings,
+            "count": len(warnings),
+        }))
 
     def _lookup_champion_name(self, champion_id: object) -> Optional[str]:
         try:

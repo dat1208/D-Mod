@@ -266,6 +266,7 @@ class LtkRuntime:
         self._sanitised_for_countdown = False
         # Likewise for the library sweep: once per process is enough.
         self._health_check_off_done = False
+        self._skinhack_warning: Optional[dict] = None
 
     def _bridge_ready(self) -> LtkBridge:
         if self._bridge and self._bridge.alive():
@@ -361,29 +362,44 @@ class LtkRuntime:
 
         Selecting a skin is the whole user-facing action: whichever archive it
         resolves to must become the enabled mod, every other mod must be
-        switched off, and the patcher must be scanning so the next game launch
-        gets it. The patcher already running is reused: switching the library
-        under it and asking it to rebuild is enough, and a stop/start would
-        drop the overlay for a game already in flight. A patcher that is not
-        running, or that reports a stale session, is (re)started.
+        switched off, and the patcher must be scanning so the next game
+        launch gets it. The patcher already running is reused: switching the
+        library under it and asking it to rebuild is enough, and a
+        stop/start would drop the overlay for a game already in flight. A
+        patcher that is not running, or that reports a stale session, is
+        (re)started.
+
+        The archive is scanned first. LTK Manager rejects a handful of
+        legitimate skins (its bin_skinhack rule fires on any audio bank
+        named CHAMPSkinN, N not 0) and reports c0000229 only after the
+        overlay is built, i.e. after the player already expects the skin.
+        Refusing here turns a silent mid-game failure into an immediate,
+        explained error, and costs one zip read.
         """
         with self._lock:
             if self._starting:
                 return
             self._starting = True
             try:
+                from injection.skin_preflight import scan_archive
+
+                warning = scan_archive(archive)
+                self._skinhack_warning = warning.as_dict() if warning else None
+                if warning is not None:
+                    log.error('[LTK] Refusing skin: ' + warning.summary)
+                    raise LtkRuntimeError(warning.summary)
                 # Sanitise only on the first prepare of one countdown.
                 #
                 # The loadout ticker re-arms this every second (T-9s .. T-2s),
                 # and sanitize() kills *every* ltk_patcher_host.exe plus every
                 # manager the bridge did not start. Run on each retry tick it
                 # killed the host the previous tick had just spawned, which LTK
-                # Manager recorded as "DLL Injection Failure verdict=
-                # PatcherDidNotRun" and which cost ~5s of rescanning before the
+                # Manager recorded as 'DLL Injection Failure verdict=
+                # PatcherDidNotRun' and which cost ~5s of rescanning before the
                 # next tick recovered. A countdown is one selection, so the
                 # leftovers of the previous session only need clearing once:
-                # that is what _ltk_sanitised_for marks, reset whenever the
-                # selection changes or the game ends.
+                # that is what _sanitised_for_countdown marks, reset whenever
+                # the selection changes or the game ends.
                 if not self._sanitised_for_countdown:
                     preflight.sanitize()
                     self._sanitised_for_countdown = True

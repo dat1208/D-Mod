@@ -194,6 +194,38 @@ def _failed_skins(ctx: ApiContext) -> dict:
     files = data.get("files", []) if isinstance(data, dict) else []
     return {"files": files}
 
+def _skins_preflight(ctx: ApiContext) -> dict:
+    """Whether LTK is expected to refuse a skin, answered before it is picked.
+
+    LTK Manager builds its overlay, then reports c0000229 for a few valid
+    skins whose WAD names an audio bank CHAMPSkinN (N not 0). By then the
+    player has already queued. This route answers from the archive alone,
+    so the UI can grey a broken skin out and say why.
+
+    ``champion`` is an optional champion directory name/id; without it
+    every installed skin is scanned, which is what the picker does once
+    on open.
+    """
+    from injection.skin_preflight import scan_archive
+    from utils.core.paths import get_skins_dir
+
+    root = get_skins_dir()
+    champion = str(ctx.query.get("champion", "") or "").strip()
+    try:
+        limit = max(0, int(ctx.query.get("limit", 400)))
+    except (TypeError, ValueError):
+        limit = 400
+    base = root / champion if champion else root
+    warnings = []
+    if base.is_dir():
+        archives = sorted(base.rglob("*.fantome")) + sorted(base.rglob("*.modpkg"))
+        for archive in archives[:limit]:
+            warning = scan_archive(archive)
+            if warning is not None:
+                warnings.append(warning.as_dict())
+    return {"warnings": warnings, "count": len(warnings)}
+
+
 def _retry_skin(ctx: ApiContext, body: dict) -> dict:
     """Re-download one failed skin by its repository path."""
     from utils.download.repo_downloader import RepoDownloader
@@ -229,6 +261,7 @@ _GET_ROUTES: dict[str, Callable[[ApiContext], Any]] = {
     "/api/updates": _updates,
     "/api/diagnostics": _diagnostics,
     "/api/skins/failed": _failed_skins,
+    "/api/skins/preflight": _skins_preflight,
 }
 
 _POST_ROUTES: dict[str, Callable[[ApiContext, dict], Any]] = {
