@@ -33,6 +33,15 @@
   let pendingSelectionRequest = null;
   let lastSkinModsRequestKey = null;
   let lastSkinModsRequestAt = 0;
+  // Champion the preflight verdicts below belong to.
+  let preflightForKey = null;
+  let preflightRequestedAt = 0;
+  // skinId -> { kind, code, message } for every skin known to disappoint.
+  const skinVerdicts = new Map();
+  // skinId whose warning banner is on screen, and the banner itself.
+  let bannerSkinId = null;
+  let bannerHost = null;
+  let bannerTimer = null;
 
   function logInfo(message, extra) {
     console.log(`${LOG_PREFIX} ${message}`, extra ?? "");
@@ -295,6 +304,48 @@
 .${btn}[data-hidden], .${btn}[data-hidden] * {
   pointer-events: none !important; cursor: default !important; visibility: hidden !important;
 }
+[data-dch-blocked="1"] { position: relative; cursor: not-allowed !important; }
+[data-dch-blocked="1"]::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 6;
+  background: linear-gradient(0deg, rgba(200,40,40,.30), rgba(200,40,40,.10));
+  box-shadow: inset 0 0 0 2px #c83232; border-radius: inherit;
+}
+.dch-broken-badge {
+  position: absolute; top: 2px; right: 2px; z-index: 11; pointer-events: none;
+  font: 700 9px/1 system-ui, sans-serif; letter-spacing: .3px;
+  color: #fff; background: #c83232; border-radius: 3px;
+  padding: 3px 5px; box-shadow: 0 1px 4px rgba(0,0,0,.5); text-transform: uppercase;
+}
+.dch-noaudio-badge {
+  position: absolute; top: 2px; right: 2px; z-index: 11; pointer-events: none;
+  font: 700 9px/1 system-ui, sans-serif; letter-spacing: .3px;
+  color: #1e2328; background: #c8aa6e; border-radius: 3px;
+  padding: 3px 5px; box-shadow: 0 1px 4px rgba(0,0,0,.5); text-transform: uppercase;
+}
+.dch-skin-warning-banner {
+  position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%);
+  z-index: 2147483000; width: min(520px, 86vw);
+  background: #1e2328; border: 1px solid #c8aa6e; border-radius: 6px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.65); color: #cdbe91;
+  font: 400 12px/1.5 system-ui, sans-serif; padding: 12px 14px;
+  direction: ltr; text-align: left;
+}
+.dch-skin-warning-banner .dch-warn-title {
+  font-weight: 700; color: #c8aa6e; text-transform: uppercase;
+  letter-spacing: .6px; font-size: 11px; margin-bottom: 6px;
+}
+.dch-skin-warning-banner .dch-warn-body { color: #a09b8c; margin-bottom: 10px; }
+.dch-skin-warning-banner .dch-warn-body strong { color: #f0e6d2; }
+.dch-skin-warning-banner .dch-warn-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.dch-skin-warning-banner button {
+  font: 700 11px/1 system-ui, sans-serif; letter-spacing: .4px; text-transform: uppercase;
+  padding: 8px 14px; border-radius: 3px; cursor: pointer;
+  border: 1px solid #785a28; background: #1e2328; color: #cdbe91;
+}
+.dch-skin-warning-banner button.dch-warn-primary {
+  background: linear-gradient(180deg,#c8aa6e,#785a28); border-color: #c8aa6e; color: #1e2328;
+}
+.dch-skin-warning-banner button:hover { filter: brightness(1.15); }
 .${btn} .outer-mask {
   pointer-events: auto; cursor: pointer; border-radius: 50%;
   box-shadow: 0 0 4px 1px rgba(1,10,19,.25); box-sizing: border-box; height: 100%;
@@ -761,6 +812,118 @@
     }, 100);
   }
 
+  // --- blocked-skin guards -----------------------------------------------
+  //
+  // A blocked skin item is a carousel node Ember re-renders whenever the
+  // player scrolls or hovers, so binding on the node would mean re-binding
+  // every frame and racing the render. Capturing on `document` fires before
+  // the carousel's own delegated handler regardless of which node exists,
+  // which is the only reliable place to refuse the click.
+  //
+  // Three events are swallowed, not just `click`: League's carousel can act
+  // on `pointerdown`, and keeping the default would still move focus and
+  // scroll the list into a skin that cannot be applied.
+  const BLOCKED_EVENTS = ["pointerdown", "mousedown", "click"];
+
+  function installBlockedSkinGuards() {
+    if (window.__dchBlockedGuardsInstalled) return;
+    window.__dchBlockedGuardsInstalled = true;
+
+    const swallow = (event) => {
+      const target = event.target;
+      if (!target || typeof target.closest !== "function") return;
+      if (panel && panel.contains(target)) return;
+
+      const item = target.closest('[data-dch-blocked="1"]');
+      if (!item) return;
+
+      // Refuse the interaction but leave the event visible to our own banner,
+      // which is how the player learns why nothing happened.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const verdict = verdictForItem(item);
+      if (verdict) showSkinWarning(item, verdict.skinId, verdict.verdict, true);
+    };
+
+    for (const name of BLOCKED_EVENTS) {
+      document.addEventListener(name, swallow, true);
+    }
+
+    // Keyboard parity: a blocked skin reached with Enter/Space must be
+    // refused too, otherwise the guard only covers mouse users.
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
+      const active = document.activeElement;
+      if (!active || typeof active.closest !== "function") return;
+      const item = active.closest('[data-dch-blocked="1"]');
+      if (!item) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const verdict = verdictForItem(item);
+      if (verdict) showSkinWarning(item, verdict.skinId, verdict.verdict, true);
+    }, true);
+  }
+
+  function hideSkinWarning() {
+    if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
+    if (bannerHost && bannerHost.parentNode) bannerHost.parentNode.removeChild(bannerHost);
+    bannerHost = null;
+    bannerSkinId = null;
+  }
+
+  function showSkinWarning(skinItem, skinId, verdict, isBlocked) {
+    hideSkinWarning();
+    bannerSkinId = skinId;
+
+    const host = document.createElement("div");
+    host.className = "dch-skin-warning-banner";
+    host.setAttribute("role", "alert");
+
+    const title = document.createElement("div");
+    title.className = "dch-warn-title";
+    title.textContent = isBlocked
+      ? t("This skin cannot be used")
+      : t("This skin will have no skill sounds");
+
+    const body = document.createElement("div");
+    body.className = "dch-warn-body";
+    const name = document.createElement("strong");
+    name.textContent = visibleModName({ modName: skinItem.getAttribute("data-skin-name") || "" }, "")
+      || t("Selected skin");
+    body.appendChild(name);
+    body.appendChild(document.createTextNode(
+      isBlocked
+        ? " — " + t("LTK Manager refuses this archive (c0000229), so it would never appear in game.")
+        : " — " + t("The archive is missing the audio bank it needs, so skill sounds will be silent.")
+    ));
+
+    const actions = document.createElement("div");
+    actions.className = "dch-warn-actions";
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = isBlocked ? t("Choose another") : t("Use it anyway");
+    close.className = "dch-warn-primary";
+    close.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      hideSkinWarning();
+    });
+
+    actions.appendChild(close);
+    host.appendChild(title);
+    host.appendChild(body);
+    host.appendChild(actions);
+
+    const mount = document.body || document.documentElement;
+    mount.appendChild(host);
+    bannerHost = host;
+
+    // A warning that never leaves would cover the carousel, so it retires on
+    // its own; the player can also dismiss it at once.
+    bannerTimer = setTimeout(hideSkinWarning, 9000);
+  }
+
   function ensureButtonOnItem(skinItem) {
     if (!skinItem) return;
 
@@ -794,8 +957,208 @@
     updateButtonVisibility(existingButton, modsForCurrentSkin.length > 0);
   }
 
+  // --- skin health -------------------------------------------------------
+  //
+  // Two problems are readable from the archive before a player queues, and
+  // both are reported by the backend preflight:
+  //
+  //   blocked   LTK Manager refuses the overlay (c0000229). The skin never
+  //             appears, so the picker must not let it be chosen. The click
+  //             is swallowed in the capture phase, before the carousel's own
+  //             Ember handler can act on it.
+  //   no_audio  The skin loads but loses its skill sounds. The player may
+  //             still want it, so it stays selectable and only warns.
+  function requestSkinPreflight() {
+    if (!bridge) return;
+    const championId = getCurrentSkinContext().championId;
+    if (!Number.isFinite(championId) || championId <= 0) return;
+
+    const key = String(championId);
+    const now = Date.now();
+    // One ChampSelect cannot change which archives are installed, so ask once
+    // per champion instead of once per carousel render.
+    if (key === preflightForKey && now - preflightRequestedAt < 30000) return;
+    preflightForKey = key;
+    preflightRequestedAt = now;
+
+    bridge.send({ type: "request-skin-preflight", championId: key });
+  }
+
+  function handleSkinPreflight(data) {
+    const detail = (data && data.detail) || data;
+    if (!detail || detail.type !== "skin-preflight") return;
+
+    const championId = getCurrentSkinContext().championId;
+    const replyChampion = Number(detail.championId);
+    if (Number.isFinite(replyChampion) && replyChampion > 0 &&
+        Number.isFinite(championId) && championId > 0 && replyChampion !== championId) {
+      return;
+    }
+
+    skinVerdicts.clear();
+    const warnings = Array.isArray(detail.warnings) ? detail.warnings : [];
+    for (const warning of warnings) {
+      const skinId = Number(warning && warning.skinId);
+      if (!Number.isFinite(skinId) || skinId <= 0) continue;
+      skinVerdicts.set(skinId, {
+        kind: String((warning && warning.kind) || "unknown"),
+        code: String((warning && warning.code) || ""),
+        message: String((warning && warning.message) || ""),
+      });
+    }
+
+    const blocked = Number(detail.blocked) || 0;
+    const noAudio = Number(detail.noAudio) || 0;
+    logInfo("Preflight: " + blocked + " blocked, " + noAudio + " without audio");
+    skinVerdicts.set("__counts", { blocked: blocked, noAudio: noAudio });
+    scanSkinSelection();
+  }
+
+  function verdictForItem(skinItem) {
+    const skinId = getSkinIdFromItem(skinItem);
+    if (!Number.isFinite(skinId) || skinId <= 0) return null;
+    const verdict = skinVerdicts.get(skinId);
+    if (!verdict || verdict.blocked !== undefined) return null;
+    if (verdict.kind !== "blocked" && verdict.kind !== "no_audio") return null;
+    return { skinId: skinId, verdict: verdict };
+  }
+
+  function markItemVerdict(skinItem) {
+    // Badges and the blocked flag are ours: clear them first so a recycled
+    // carousel node (or a skin that became healthy) never keeps stale state.
+    const stale = skinItem.querySelectorAll(".dch-broken-badge, .dch-noaudio-badge");
+    for (const node of stale) node.remove();
+    skinItem.removeAttribute("data-dch-blocked");
+    skinItem.removeAttribute("aria-disabled");
+
+    const found = verdictForItem(skinItem);
+    if (!found) return;
+
+    const verdict = found.verdict;
+    const badge = document.createElement("div");
+    if (verdict.kind === "blocked") {
+      skinItem.setAttribute("data-dch-blocked", "1");
+      skinItem.setAttribute("aria-disabled", "true");
+      badge.className = "dch-broken-badge";
+      badge.textContent = t("Broken");
+      badge.title = verdict.message || t("LTK Manager refuses this skin (c0000229).");
+    } else {
+      badge.className = "dch-noaudio-badge";
+      badge.textContent = t("No audio");
+      badge.title = verdict.message || t("This skin will lose its skill sounds.");
+    }
+    skinItem.appendChild(badge);
+  }
+
+  function blockBrokenSkinClick(event) {
+    const target = event.target;
+    if (!target || typeof target.closest !== "function") return;
+    // Our own panel lives inside the item it was opened from; clicks there
+    // must keep working even when the item is blocked.
+    if (panel && panel.contains(target)) return;
+    const item = target.closest('[data-dch-blocked="1"]');
+    if (!item) return;
+
+    // Swallow the gesture in the capture phase: Ember's delegated handler on
+    // the carousel never sees it, so the client cannot select the skin either.
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    event.stopPropagation();
+
+    const found = verdictForItem(item);
+    showWarningBanner(item, found ? found.verdict : null, true);
+  }
+
+  function blockBrokenSkinKey(event) {
+    if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
+    const target = event.target;
+    if (!target || typeof target.closest !== "function") return;
+    const item = target.closest('[data-dch-blocked="1"]');
+    if (!item) return;
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    const found = verdictForItem(item);
+    showWarningBanner(item, found ? found.verdict : null, true);
+  }
+
+  function closeWarningBanner() {
+    if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
+    if (bannerHost && bannerHost.parentNode) bannerHost.parentNode.removeChild(bannerHost);
+    bannerHost = null;
+    bannerSkinId = null;
+  }
+
+  function showWarningBanner(skinItem, verdict, isBlocked) {
+    closeWarningBanner();
+
+    const skinId = getSkinIdFromItem(skinItem);
+    bannerSkinId = Number.isFinite(skinId) ? skinId : null;
+
+    const host = document.createElement("div");
+    host.className = "dch-skin-warning-banner";
+    host.setAttribute("role", "alert");
+
+    const title = document.createElement("div");
+    title.className = "dch-warn-title";
+    title.textContent = isBlocked
+      ? t("Skin unavailable")
+      : t("Skill sounds missing");
+    host.appendChild(title);
+
+    const body = document.createElement("div");
+    body.className = "dch-warn-body";
+    const name = document.createElement("strong");
+    name.textContent = String(
+      (skinMonitorState && skinMonitorState.name) || t("This skin")
+    );
+    body.appendChild(name);
+    body.appendChild(document.createTextNode(" - "));
+    body.appendChild(document.createTextNode(
+      isBlocked
+        ? t("LTK Manager refuses this skin (c0000229), so it will never appear in game. Pick another skin.")
+        : (verdict && verdict.message) ||
+          t("This skin will load, but its skill sounds will be silent because the archive lost its audio bank.")
+    ));
+    host.appendChild(body);
+
+    const actions = document.createElement("div");
+    actions.className = "dch-warn-actions";
+
+    if (!isBlocked) {
+      const keep = document.createElement("button");
+      keep.className = "dch-warn-primary";
+      keep.textContent = t("Use anyway");
+      keep.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeWarningBanner();
+      });
+      actions.appendChild(keep);
+    }
+
+    const dismiss = document.createElement("button");
+    dismiss.textContent = t("Pick another");
+    dismiss.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeWarningBanner();
+    });
+    actions.appendChild(dismiss);
+    host.appendChild(actions);
+
+    // Attached to body, not inside the carousel: Ember re-renders the skin
+    // list constantly and would tear a nested banner down mid-read.
+    document.body.appendChild(host);
+    bannerHost = host;
+
+    // Auto-dismiss so a forgotten banner never sits over the client.
+    bannerTimer = setTimeout(() => closeWarningBanner(), 12000);
+  }
+
   function scanSkinSelection() {
     const skinItems = document.querySelectorAll(".skin-selection-item, .thumbnail-wrapper");
+    // Reflect the preflight verdicts on every item, every scan: the carousel
+    // recycles nodes, so a stale badge is a real possibility.
+    for (const item of skinItems) markItemVerdict(item);
+
     if (!skinItems.length) { removeAllButtons(); closePanel(); return; }
     skinItems.forEach(s => ensureButtonOnItem(s));
     if (!(panelSkinItemRef && panelSkinItemRef.isConnected && panelSkinItemRef.querySelector(BUTTON_SELECTOR) && modsForCurrentSkin.length > 0)) closePanel();
@@ -922,6 +1285,7 @@
         }
         scanSkinSelection();
       });
+      bridge.on("skin-preflight", handleSkinPreflight);
       bridge.onReady(() => {
         bridge.send({ type: "request-local-asset", assetPath: BUTTON_ICON_ASSET_PATH, timestamp: Date.now() });
         requestModsForCurrentSkin();
@@ -933,8 +1297,11 @@
     window.addEventListener("resize", () => { if (panel && panel.parentNode && panelButtonRef) positionPanel(panel, panelButtonRef); });
     window.addEventListener("scroll", () => { if (panel && panel.parentNode && panelButtonRef) positionPanel(panel, panelButtonRef); });
 
+    installBlockedSkinGuards();
+
     observeSkinSelection();
     requestModsForCurrentSkin();
+    requestSkinPreflight();
     scanSkinSelection();
   }
 
