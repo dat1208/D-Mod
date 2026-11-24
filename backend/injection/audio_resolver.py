@@ -41,6 +41,7 @@ _READ_LIMIT = 24 * 1024 * 1024
 AUDIO_OK = "ok"
 AUDIO_MISSING_SRC = "missing_src"
 AUDIO_UNKNOWN = "unknown"
+AUDIO_FALLBACK = "fallback"  # copy is dead, but the target bank still plays
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,14 @@ class AudioVerdict:
         if self.status == AUDIO_UNKNOWN:
             return "Could not read this archive; audio is unverified"
         names = ", ".join(self.missing)
+        if self.status == AUDIO_FALLBACK:
+            return (
+                "This skin keeps the default champion sounds: the archive "
+                "declares an audio copy whose source bank is missing ("
+                + names
+                + "), but the bank it copies onto is still in the WAD, so "
+                "nothing goes silent."
+            )
         return (
             "This skin will lose its skill sounds: the archive declares "
             + str(self.copies)
@@ -75,7 +84,10 @@ class AudioVerdict:
 
     def as_dict(self) -> Dict[str, object]:
         return {
-            "code": "no_audio" if self.status == AUDIO_MISSING_SRC else self.status,
+            "code": {
+                AUDIO_MISSING_SRC: "no_audio",
+                AUDIO_FALLBACK: "audio_fallback",
+            }.get(self.status, self.status),
             "status": self.status,
             "archive": self.archive,
             "champion": self.champion,
@@ -163,6 +175,8 @@ def inspect_archive(archive) -> AudioVerdict:
             members = _wad_members(names)
             champion: Optional[str] = None
             missing: List[str] = []
+            silenced: List[str] = []
+            rescued: List[str] = []
             for entry in copies:
                 if not isinstance(entry, dict):
                     continue
@@ -176,8 +190,31 @@ def inspect_archive(archive) -> AudioVerdict:
                 champion = champion or _champion_of(member)
                 with bundle.open(member) as handle:
                     payload = handle.read(_READ_LIMIT)
-                if not _bank_present(payload, source):
-                    missing.append(source)
+                if _bank_present(payload, source):
+                    continue
+                # The copy cannot run. Whether the skin goes silent depends on
+                # one thing: is a bank it could still play already in the WAD?
+                # Rose's copies target the skin's own bank slot, and skins ship
+                # that slot filled (Base/Base2). A dead copy therefore leaves a
+                # playable bank behind, not a hole.
+                target = entry.get("to")
+                if isinstance(target, str) and target.strip() and _bank_present(payload, target):
+                    rescued.append(source)
+                else:
+                    silenced.append(source)
+
+            if silenced:
+                missing.extend(silenced)
+            elif rescued:
+                verdict = AudioVerdict(
+                    archive=str(archive),
+                    status=AUDIO_FALLBACK,
+                    champion=champion,
+                    copies=len(copies),
+                    missing=tuple(rescued),
+                )
+                log.info("[AUDIO] " + verdict.summary)
+                return verdict
 
             if missing:
                 verdict = AudioVerdict(

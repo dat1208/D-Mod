@@ -1101,6 +1101,7 @@ class MessageHandler:
                 warnings.append(verdict)
         blocked = sum(1 for w in warnings if w.get("kind") == "blocked")
         no_audio = sum(1 for w in warnings if w.get("kind") == "no_audio")
+        fallback = sum(1 for w in warnings if w.get("kind") == "audio_fallback")
         self._send_response(json.dumps({
             "type": "skin-preflight",
             "championId": champion,
@@ -1108,6 +1109,7 @@ class MessageHandler:
             "count": len(warnings),
             "blocked": blocked,
             "noAudio": no_audio,
+            "audioFallback": fallback,
         }))
 
     def _lookup_champion_name(self, champion_id: object) -> Optional[str]:

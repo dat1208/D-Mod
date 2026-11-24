@@ -327,6 +327,14 @@
   color: #1e2328; background: #c8aa6e; border-radius: 3px;
   padding: 3px 5px; box-shadow: 0 1px 4px rgba(0,0,0,.5); text-transform: uppercase;
 }
+.dch-fallback-badge {
+  position: absolute; top: 2px; right: 2px; z-index: 11; pointer-events: none;
+  font: 700 9px/1 system-ui, sans-serif; letter-spacing: .3px;
+  color: #cdbe91; background: rgba(30,35,40,.92);
+  border: 1px solid #5b6b7a; border-radius: 3px;
+  padding: 2px 5px; box-shadow: 0 1px 4px rgba(0,0,0,.5); text-transform: uppercase;
+  opacity: .85;
+}
 .dch-skin-warning-banner {
   position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%);
   z-index: 2147483000; width: min(520px, 86vw);
@@ -1014,8 +1022,16 @@
 
     const blocked = Number(detail.blocked) || 0;
     const noAudio = Number(detail.noAudio) || 0;
-    logInfo("Preflight: " + blocked + " blocked, " + noAudio + " without audio");
-    skinVerdicts.set("__counts", { blocked: blocked, noAudio: noAudio });
+    const fallback = Number(detail.audioFallback) || 0;
+    logInfo(
+      "Preflight: " + blocked + " blocked, " + noAudio + " without audio, " +
+      fallback + " on default audio"
+    );
+    skinVerdicts.set("__counts", {
+      blocked: blocked,
+      noAudio: noAudio,
+      audioFallback: fallback,
+    });
     scanSkinSelection();
   }
 
@@ -1024,14 +1040,20 @@
     if (!Number.isFinite(skinId) || skinId <= 0) return null;
     const verdict = skinVerdicts.get(skinId);
     if (!verdict || verdict.blocked !== undefined) return null;
-    if (verdict.kind !== "blocked" && verdict.kind !== "no_audio") return null;
+    if (
+      verdict.kind !== "blocked" &&
+      verdict.kind !== "no_audio" &&
+      verdict.kind !== "audio_fallback"
+    ) return null;
     return { skinId: skinId, verdict: verdict };
   }
 
   function markItemVerdict(skinItem) {
     // Badges and the blocked flag are ours: clear them first so a recycled
     // carousel node (or a skin that became healthy) never keeps stale state.
-    const stale = skinItem.querySelectorAll(".dch-broken-badge, .dch-noaudio-badge");
+    const stale = skinItem.querySelectorAll(
+      ".dch-broken-badge, .dch-noaudio-badge, .dch-fallback-badge"
+    );
     for (const node of stale) node.remove();
     skinItem.removeAttribute("data-dch-blocked");
     skinItem.removeAttribute("aria-disabled");
@@ -1047,6 +1069,11 @@
       badge.className = "dch-broken-badge";
       badge.textContent = t("Broken");
       badge.title = verdict.message || t("LTK Manager refuses this skin (c0000229).");
+    } else if (verdict.kind === "audio_fallback") {
+      badge.className = "dch-fallback-badge";
+      badge.textContent = t("Default audio");
+      badge.title = verdict.message ||
+        t("This skin keeps the champion's default sounds.");
     } else {
       badge.className = "dch-noaudio-badge";
       badge.textContent = t("No audio");

@@ -159,6 +159,15 @@ def scan_archives(paths: Iterable) -> Dict[str, Dict[str, object]]:
     return warnings
 
 
+# Audio statuses are internal; the picker speaks in verdict kinds. A copy whose
+# source bank is gone but whose target bank survives is not damage: the skin
+# keeps the champion's default sounds, so it gets its own, milder kind.
+_KIND_BY_AUDIO_STATUS = {
+    "missing_src": "no_audio",
+    "fallback": "audio_fallback",
+}
+
+
 def classify_archive(archive):
     # One verdict per skin, combining both reasons it can disappoint.
     #
@@ -176,9 +185,7 @@ def classify_archive(archive):
     audio = inspect_archive(archive)
     if audio.status != AUDIO_OK:
         verdict = dict(audio.as_dict())
-        verdict["kind"] = (
-            "no_audio" if audio.status == "missing_src" else "unknown"
-        )
+        verdict["kind"] = _KIND_BY_AUDIO_STATUS.get(audio.status, "unknown")
         return verdict
 
     return {"kind": "ok", "status": "ok", "archive": str(archive)}
