@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "D-Changer",
+  "productName": "D-Mod",
   "version": "1.0.0",
-  "identifier": "com.dchanger.app",
+  "identifier": "com.dmod.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "D-Changer",
+        "title": "D-Mod",
         "width": 900,
         "height": 620,
         "resizable": true,

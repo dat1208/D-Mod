@@ -1,12 +1,40 @@
-# D-Changer
+# D-Mod
 
 A League of Legends skin changer with a desktop UI. Built on the [Rose](https://github.com/Alban1911/Rose) engine, with party mode and analytics removed and a Tauri interface added.
 
 This file is also the orientation document for anyone (human or model) picking up the codebase. Read it before reviewing or changing anything: it records the architecture, the startup order, the invariants that are easy to break, and the traps that have already been hit.
 
+## Skin health (1.0.0)
+
+Every installed skin is classified from its archive before the queue, so a
+player learns what will fail without losing a game to it:
+
+| Verdict | Meaning | What the app does |
+|---|---|---|
+| `blocked` | LTK Manager refuses the archive (`c0000229`, skinhack rule) | Marks the skin red and refuses the click in the picker |
+| `no_audio` | The archive declares a skill-sound bank it never stores | Marks the skin amber, still selectable, warns on use |
+| `ok` | Neither applies | Nothing |
+
+`blocked` is fatal: the overlay is never built, so the skin never appears.
+`no_audio` is a warning: the skin loads but plays with the base events bank,
+which leaves skill sounds silent.
+
+**The audio problem cannot be repaired by this tool.** Rose's packer wrote
+`META/rose_sounds.json` and copied the skin's SFX bank at runtime; LTK Manager
+only overlays files that are already in the archive. The source bank is absent
+from the mod, and scanning every WAD in the installed client found no copy of
+it either. D-Mod therefore reports the problem and refuses to write into game
+files: a half-written bank corrupts the client, and the missing bank cannot be
+invented.
+
+Measured on the 14 installed Zed skins: 2 blocked (`238013`, `238068`),
+11 without skill audio, 1 clean (`238002`, an LTK-native archive).
+
+---
+
 ## Important: read before installing
 
-D-Changer injects into the League of Legends process. Riot's Terms of Service
+D-Mod injects into the League of Legends process. Riot's Terms of Service
 prohibit third-party software that modifies the game, and **using this tool can
 get your account banned**. There is no guarantee of safety, and the authors
 accept no liability for account action. Use at your own risk, preferably on an
@@ -17,15 +45,15 @@ time you run the installer.
 
 ## Install
 
-1. Download **`D-Changer_x.x.x_x64-setup.exe`** from [Releases](https://github.com/dat1208/Dat-Rose/releases/latest).
+1. Download **`D-Mod_x.x.x_x64-setup.exe`** from [Releases](https://github.com/dat1208/D-Mod/releases/latest).
 2. Run it. Windows may warn about an unknown publisher (the app is not code-signed): choose **More info â†’ Run anyway**.
-3. Launch **D-Changer** from the Start menu and accept the UAC prompt. The app needs administrator rights to inject into the game.
+3. Launch **D-Mod** from the Start menu and accept the UAC prompt. The app needs administrator rights to inject into the game.
 
 The engine fetches the LTK patcher and skin data on first launch; the UI shows the progress.
 
 ## Use
 
-1. Open the League client and the D-Changer window.
+1. Open the League client and the D-Mod window.
 2. In champion select, pick your champion. The chroma panel appears in the client.
 3. Choose a skin. It is applied when the game loads.
 
@@ -139,12 +167,12 @@ Notes that are easy to get wrong:
 - Each download goes to a temp file in the target directory, is checked for size, SHA-256 and (on Windows) Authenticode `Valid`, then moved in with `os.replace`. A failed download leaves the existing pair untouched.
 - `fetch_patcher` compares the **installed pair against the pin**, not just its presence. A pair left by an older build is replaced on the next start. This was a real bug: presence-only checking meant an install kept a stale DLL forever.
 - `_verifies_host` only logs a warning; the pin comparison decides what is installed.
-- **Do not move the pin to a newer commit without testing an injection.** From `46198022` onward the DLL checks the process that started the game against a hardcoded allowlist (`ltk_patcher_host.exe`, `ltk-manager.exe`, `explorer.exe`) and refuses the overlay with `host verification failed, refusing overlay: [VRF00000008]` when the parent is anything else. D-Changer's engine spawns the host itself, so the parent is `dchanger-backend.exe`, which is not on that list: every injection fails and the game runs with the stock skin. The pinned pair (`08468a32`) has no such check. Its end-of-life date is 2026-10-18, already past, so it works only until League ships a build newer than that.
+- **Do not move the pin to a newer commit without testing an injection.** From `46198022` onward the DLL checks the process that started the game against a hardcoded allowlist (`ltk_patcher_host.exe`, `ltk-manager.exe`, `explorer.exe`) and refuses the overlay with `host verification failed, refusing overlay: [VRF00000008]` when the parent is anything else. D-Mod's engine spawns the host itself, so the parent is `dchanger-backend.exe`, which is not on that list: every injection fails and the game runs with the stock skin. The pinned pair (`08468a32`) has no such check. Its end-of-life date is 2026-10-18, already past, so it works only until League ships a build newer than that.
 - `patcher_is_stale` compares the DLL's built-in end-of-life date against the **game executable's build timestamp**, not the wall clock. A DLL past its date keeps working until League itself updates.
 
 The patcher is **not bundled** (`D-Changer.spec` excludes it). A shipped copy would only go stale and could shadow the verified one.
 
-**Maintenance:** the DLL has an end-of-life date. When it passes, update `PIN_COMMIT` and both hashes after re-downloading and re-verifying by hand, and test an actual injection before shipping: a newer DLL may refuse D-Changer as its host (see the host verification note above). Do not trust a value copied from an issue or a previous session.
+**Maintenance:** the DLL has an end-of-life date. When it passes, update `PIN_COMMIT` and both hashes after re-downloading and re-verifying by hand, and test an actual injection before shipping: a newer DLL may refuse D-Mod as its host (see the host verification note above). Do not trust a value copied from an issue or a previous session.
 
 Two things help here:
 
