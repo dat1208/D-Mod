@@ -176,6 +176,30 @@ def classify_archive(archive):
     # unknown  : the archive could not be read.
     from injection.audio_resolver import AUDIO_OK, inspect_archive
 
+    # LTK's own refusal outranks anything this module can predict. It is the
+    # only evidence that is certain: the manager said no for this exact
+    # archive. Checked first so a recorded refusal cannot be overridden by a
+    # heuristic that happens to read the archive as clean.
+    from injection.blocked_skins import is_blocked
+
+    recorded = is_blocked(archive)
+    if recorded is not None:
+        return {
+            "kind": "blocked",
+            "status": "SkinhackDetected",
+            "code": recorded.get("code") or "c0000229",
+            "archive": str(archive),
+            "skinId": recorded.get("skinId"),
+            "message": (
+                "LTK Manager refused this skin on this machine "
+                "(" + str(recorded.get("code") or "c0000229") + ")"
+                + (": " + recorded["reason"] if recorded.get("reason") else "")
+                + ". Picking it would crash the game."
+            ),
+            "source": "ltk-refusal",
+            "timesRefused": recorded.get("timesRefused"),
+        }
+
     blocked = scan_archive(archive)
     if blocked is not None:
         verdict = dict(blocked.as_dict())

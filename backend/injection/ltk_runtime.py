@@ -407,9 +407,58 @@ class LtkRuntime:
                 self._health_check_off_once(bridge)
                 mod_id = self._activate(bridge, archive)
                 self._ensure_patcher(bridge, mod_id)
+                self._record_ltk_verdict(bridge, mod_id, archive)
                 self._confirm_patcher(bridge, mod_id)
             finally:
                 self._starting = False
+
+
+    def _record_ltk_verdict(self, bridge: LtkBridge, mod_id: str,
+                            archive) -> None:
+        """Ask LTK what it thinks of the mod it was just handed, and remember it.
+
+        The manager's own health check is the only verdict worth storing: it
+        runs the same rules that decide whether the overlay is allowed, so a
+        refusal here is the same refusal the game would hit. Reading it *now*
+        means the next selection can lock this skin instead of crashing.
+
+        A health check is slow (it hashes the whole mod), so it is best effort
+        and bounded: a slow or absent answer must never delay the injection
+        the player is waiting on.
+        """
+        from injection.blocked_skins import record_refusal
+        from injection.skin_preflight import _skin_id_of
+
+        try:
+            answer = bridge.check_mod_health(mod_id)
+        except (BridgeUnavailable, BridgeCommandError) as exc:
+            log.debug("[LTK] Health check unavailable for %s: %s", mod_id, exc)
+            return
+        except Exception as exc:  # noqa: BLE001 - never break an injection
+            log.debug("[LTK] Health check raised for %s: %s", mod_id, exc)
+            return
+
+        value = (answer.get("response") or {}).get("value") or {}
+        if not isinstance(value, dict):
+            return
+        verdict = str(value.get("verdict") or value.get("status") or "")
+        code = str(value.get("code") or "")
+        reason = str(value.get("reason") or value.get("detail") or "")
+        healthy = value.get("healthy")
+        if healthy is None:
+            healthy = verdict.lower() in ("ok", "healthy", "clean", "") and not code
+
+        if healthy:
+            # A clean verdict clears an older refusal for the same content,
+            # which is how a repaired skin becomes pickable again.
+            from injection.blocked_skins import forget
+            forget(archive)
+            return
+
+        code = code or "c0000229"
+        log.warning("[LTK] Manager refused mod %s (%s): %s", mod_id, code, reason or verdict)
+        record_refusal(archive, code=code, reason=reason or verdict,
+                       skin_id=_skin_id_of(archive))
 
     def _confirm_patcher(self, bridge: LtkBridge, mod_id: str, *,
                          timeout: float = 15.0) -> None:
