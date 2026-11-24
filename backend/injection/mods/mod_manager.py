@@ -67,12 +67,41 @@ class ModManager:
         # Security: Use safe extraction to prevent path traversal attacks.
         safe_extractall(zp, target)
 
+        # Rose archives declare audio copies in META/rose_sounds.json: "take the
+        # skin's own bank and write it over the champion's default one". The
+        # source banks do not exist in the archive - no Rose skin ships audio,
+        # only geometry and textures - so honouring the copy replaces a working
+        # default bank with nothing and the skin goes silent.
+        #
+        # LTK reads that file on its own, so it has to be gone from the extracted
+        # mod, not ignored by us. Without it the game keeps the champion's
+        # default sounds, which is exactly what a skin without audio should do.
+        self._drop_rose_sounds(target)
+
         # Hide extracted files so they can't be easily browsed
         self._hide_directory(target)
 
         file_type = {".zip": "ZIP", ".fantome": ".fantome"}.get(zp.suffix.lower(), zp.suffix)
         log_success(log, f"Extracted {file_type}: {zp.name}", "ðŸ“¦")
         return target
+
+    @staticmethod
+    def _drop_rose_sounds(target: Path) -> None:
+        """Remove Rose's audio-copy declaration from an extracted mod.
+
+        A copy it cannot perform is not neutral: it overwrites the default bank
+        with an empty one. Dropping the file leaves the champion's own sounds in
+        place.
+        """
+        removed = 0
+        for path in target.rglob("rose_sounds.json"):
+            try:
+                path.unlink()
+                removed += 1
+            except OSError as e:
+                log.debug("[INJECT] Could not remove %s: %s", path, e)
+        if removed:
+            log.debug(f"[INJECT] Dropped {removed} rose_sounds.json so the skin keeps default audio")
 
     @staticmethod
     def _hide_directory(path: Path):
