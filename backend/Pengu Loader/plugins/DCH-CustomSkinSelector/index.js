@@ -1,3 +1,8 @@
+/**
+ * @name DCH-CustomSkinSelector
+ * @author D-Changer
+ * @description Custom skin picker for Pengu Loader
+ */
 (function createCustomSkinSelector() {
   const LOG_PREFIX = "[DCH-CustomSkinSelector]";
   const BUTTON_CLASS = "lu-custom-skin-button";
