@@ -151,6 +151,12 @@ hiddenimports = [
     'injection.tools.patcher',
     'injection.loadingname',
     'injection.loadingname.loading_name',
+    # Both are imported inside function bodies, so PyInstaller cannot
+    # discover them by following imports. Without these the preflight
+    # route raises ImportError at runtime and the picker silently shows
+    # no verdicts.
+    'injection.skin_preflight',
+    'injection.audio_resolver',
     'lcu',
     'lcu.core',
     'lcu.core.client',
