@@ -1066,14 +1066,24 @@ class MessageHandler:
         self._send_response(json.dumps(response_payload))
 
     def _handle_request_skin_preflight(self, payload: dict) -> None:
-        """Answer which installed skins LTK Manager is expected to refuse.
+        """Answer which installed skins will disappoint, before the queue.
 
-        The skin picker asks this once per champion so a broken skin can be
-        marked before the player queues. LTK only reports c0000229 after it
-        builds the overlay, which is far too late; the archive answers the
-        same question offline (see injection.skin_preflight).
+        The skin picker asks this once per champion so it can mark every skin
+        that is known to fail. Two kinds are reported:
+
+        blocked  - LTK Manager reports c0000229 after building its overlay.
+                   Fatal: the skin never shows, so the picker must not let
+                   the player choose it.
+        no_audio - the archive carries Rose's META/rose_sounds.json asking
+                   for a runtime copy of a bank it never stores. The skin
+                   shows but loses its skill sounds; the player may still
+                   accept that, so the picker only warns.
+
+        LTK only learns this after the overlay is built, far too late; the
+        archive answers the same question offline (see
+        injection.skin_preflight and injection.audio_resolver).
         """
-        from injection.skin_preflight import scan_archive
+        from injection.skin_preflight import classify_archive
         from utils.core.paths import get_skins_dir
 
         champion = str(payload.get("championId") or "").strip()
@@ -1083,16 +1093,21 @@ class MessageHandler:
         if champion and base.is_dir():
             archives = sorted(base.rglob("*.fantome"))[:200] + sorted(base.rglob("*.modpkg"))[:200]
             for archive in archives:
-                warning = scan_archive(archive)
-                if warning is not None:
-                    entry = warning.as_dict()
-                    entry["skinId"] = archive.parent.name
-                    warnings.append(entry)
+                verdict = classify_archive(archive)
+                kind = verdict.get("kind")
+                if kind == "ok":
+                    continue
+                verdict["skinId"] = archive.parent.name
+                warnings.append(verdict)
+        blocked = sum(1 for w in warnings if w.get("kind") == "blocked")
+        no_audio = sum(1 for w in warnings if w.get("kind") == "no_audio")
         self._send_response(json.dumps({
             "type": "skin-preflight",
             "championId": champion,
             "warnings": warnings,
             "count": len(warnings),
+            "blocked": blocked,
+            "noAudio": no_audio,
         }))
 
     def _lookup_champion_name(self, champion_id: object) -> Optional[str]:

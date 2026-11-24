@@ -157,3 +157,38 @@ def scan_archives(paths: Iterable) -> Dict[str, Dict[str, object]]:
         if warning is not None:
             warnings[str(path)] = warning.as_dict()
     return warnings
+
+
+def classify_archive(archive):
+    # One verdict per skin, combining both reasons it can disappoint.
+    #
+    # blocked  : fatal. LTK refuses the overlay, the skin never shows.
+    # no_audio : warning. The skin loads but loses its skill sounds.
+    # unknown  : the archive could not be read.
+    from injection.audio_resolver import AUDIO_OK, inspect_archive
+
+    blocked = scan_archive(archive)
+    if blocked is not None:
+        verdict = dict(blocked.as_dict())
+        verdict["kind"] = "blocked"
+        return verdict
+
+    audio = inspect_archive(archive)
+    if audio.status != AUDIO_OK:
+        verdict = dict(audio.as_dict())
+        verdict["kind"] = (
+            "no_audio" if audio.status == "missing_src" else "unknown"
+        )
+        return verdict
+
+    return {"kind": "ok", "status": "ok", "archive": str(archive)}
+
+
+def classify_archives(paths):
+    # Classify many archives, skipping the healthy ones.
+    verdicts = {}
+    for path in paths:
+        verdict = classify_archive(path)
+        if verdict.get("kind") != "ok":
+            verdicts[str(path)] = verdict
+    return verdicts

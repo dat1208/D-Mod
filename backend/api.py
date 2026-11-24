@@ -197,16 +197,21 @@ def _failed_skins(ctx: ApiContext) -> dict:
 def _skins_preflight(ctx: ApiContext) -> dict:
     """Whether LTK is expected to refuse a skin, answered before it is picked.
 
-    LTK Manager builds its overlay, then reports c0000229 for a few valid
-    skins whose WAD names an audio bank CHAMPSkinN (N not 0). By then the
-    player has already queued. This route answers from the archive alone,
-    so the UI can grey a broken skin out and say why.
+    Two things can go wrong with an installed skin, and both are knowable
+    before the player queues:
+
+    ``blocked``  - LTK Manager reports c0000229 after building its overlay,
+                   because the WAD names an audio bank CHAMPSkinN (N not 0).
+    ``no_audio`` - the archive carries Rose's META/rose_sounds.json, which
+                   asks for a runtime copy of a bank the archive never
+                   stores. LTK overlays static files only, so the skin shows
+                   but loses its skill sounds.
 
     ``champion`` is an optional champion directory name/id; without it
     every installed skin is scanned, which is what the picker does once
     on open.
     """
-    from injection.skin_preflight import scan_archive
+    from injection.skin_preflight import classify_archives
     from utils.core.paths import get_skins_dir
 
     root = get_skins_dir()
@@ -219,11 +224,16 @@ def _skins_preflight(ctx: ApiContext) -> dict:
     warnings = []
     if base.is_dir():
         archives = sorted(base.rglob("*.fantome")) + sorted(base.rglob("*.modpkg"))
-        for archive in archives[:limit]:
-            warning = scan_archive(archive)
-            if warning is not None:
-                warnings.append(warning.as_dict())
-    return {"warnings": warnings, "count": len(warnings)}
+        found = classify_archives(archives[:limit])
+        warnings = list(found.values())
+    blocked = sum(1 for w in warnings if w.get("kind") == "blocked")
+    no_audio = sum(1 for w in warnings if w.get("kind") == "no_audio")
+    return {
+        "warnings": warnings,
+        "count": len(warnings),
+        "blocked": blocked,
+        "no_audio": no_audio,
+    }
 
 
 def _retry_skin(ctx: ApiContext, body: dict) -> dict:
