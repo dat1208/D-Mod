@@ -1234,6 +1234,10 @@
     resetStaleChromaStateForSkin(detail.skinId);
     skinMonitorState = detail;
     requestModsForCurrentSkin();
+    // The picker learns which champion it is looking at only here, so this is
+    // the first moment a preflight request can name a champion. Without it the
+    // verdicts never arrive and every skin looks fine.
+    requestSkinPreflight();
     scanSkinSelection();
     if (panel && panel.parentNode && panelButtonRef) positionPanel(panel, panelButtonRef);
   }
