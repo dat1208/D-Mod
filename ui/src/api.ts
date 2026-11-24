@@ -70,20 +70,35 @@ export interface FailedSkinsResponse {
   files: FailedSkin[];
 }
 
+// Both ways an installed skin can disappoint, answered by the archive alone.
+//   blocked  - LTK Manager refuses the overlay (c0000229); the skin never shows.
+//   no_audio - the skin loads but loses its skill sounds.
+//   unknown  - the archive could not be read; nothing is claimed.
+export type SkinVerdictKind = "blocked" | "no_audio" | "unknown";
+
 export interface SkinWarning {
+  kind: SkinVerdictKind;
   code: string;
   status: string;
   archive: string;
   champion: string | null;
-  skin_numbers: number[];
-  events: string[];
-  member: string | null;
   message: string;
+  // Only present on the c0000229 verdict.
+  skin_numbers?: number[];
+  events?: string[];
+  member?: string | null;
+  // Only present on the audio verdict: the banks the archive declares but
+  // never stores.
+  copies?: number;
+  missing?: string[];
+  skinId?: string;
 }
 
 export interface SkinPreflightResponse {
   warnings: SkinWarning[];
   count: number;
+  blocked: number;
+  no_audio: number;
 }
 
 // A failed invoke rejects with the Rust error string; normalise it to Error.

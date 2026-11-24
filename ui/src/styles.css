@@ -813,3 +813,20 @@ button.ghost:hover:not(:disabled) {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Skin health filter: three counts that share one list. */
+.segments { display: flex; gap: 8px; margin: 10px 0 14px; }
+.segment {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 12px; border-radius: 3px; cursor: pointer;
+  border: 1px solid #3c3c41; background: #1e2328; color: #a09b8c;
+  font: 600 12px/1 system-ui, sans-serif; letter-spacing: .3px;
+}
+.segment:hover { border-color: #785a28; color: #cdbe91; }
+.segment.active { border-color: #c8aa6e; background: #2a2a2e; color: #f0e6d2; }
+.segment-count {
+  font-size: 11px; font-weight: 700; color: #1e2328;
+  background: #785a28; border-radius: 9px; padding: 2px 6px; min-width: 18px; text-align: center;
+}
+.segment.active .segment-count { background: #c8aa6e; }
+.warn { color: #c8aa6e; }
