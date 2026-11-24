@@ -165,3 +165,28 @@ def forget(archive) -> bool:
 def all_blocked() -> Dict[str, dict]:
     """Every recorded refusal, keyed by digest."""
     return _read_state()
+
+def champion_of_archive(archive) -> Optional[str]:
+    """The champion slug an archive carries, e.g. 'zed' for WAD/Zed.wad.client.
+
+    The champion, not the skin id, is what LTK's log names on a refusal, so
+    this is the join key between an installed archive and a log line.
+    """
+    import zipfile
+
+    path = Path(archive)
+    if not path.is_file():
+        return None
+    try:
+        with zipfile.ZipFile(path) as bundle:
+            for member in bundle.namelist():
+                low = member.lower().replace(chr(92), "/")
+                if not low.endswith(".wad.client"):
+                    continue
+                stem = low.rsplit("/", 1)[-1][: -len(".wad.client")]
+                if stem and stem not in ("map11", "map12", "common"):
+                    return stem
+    except (OSError, zipfile.BadZipFile) as exc:
+        log.debug("[BLOCKLIST] Could not read champion of %s: %s", path, exc)
+    return None
+

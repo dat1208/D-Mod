@@ -70,6 +70,25 @@ class BlockedSkinsTests(unittest.TestCase):
         self.assertIsNone(blocked_skins.archive_digest(missing))
         self.assertIsNone(blocked_skins.record_refusal(missing))
 
+    def test_champion_of_archive_reads_the_wad_member(self):
+        import zipfile
+
+        with zipfile.ZipFile(self.archive, "w") as bundle:
+            bundle.writestr("WAD/Zed.wad.client", b"fake")
+        self.assertEqual(blocked_skins.champion_of_archive(self.archive), "zed")
+
+    def test_champion_of_archive_ignores_map_wads(self):
+        import zipfile
+
+        with zipfile.ZipFile(self.archive, "w") as bundle:
+            bundle.writestr("WAD/Map11.wad.client", b"fake")
+            bundle.writestr("WAD/Ahri.wad.client", b"fake")
+        self.assertEqual(blocked_skins.champion_of_archive(self.archive), "ahri")
+
+    def test_champion_of_archive_on_missing_or_garbage(self):
+        self.assertIsNone(blocked_skins.champion_of_archive(self.state / "nope.fantome"))
+        self.assertIsNone(blocked_skins.champion_of_archive(self.archive))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -415,50 +415,59 @@ class LtkRuntime:
 
     def _record_ltk_verdict(self, bridge: LtkBridge, mod_id: str,
                             archive) -> None:
-        """Ask LTK what it thinks of the mod it was just handed, and remember it.
+        """Remember a refusal the patcher DLL writes *after* the game starts.
 
-        The manager's own health check is the only verdict worth storing: it
-        runs the same rules that decide whether the overlay is allowed, so a
-        refusal here is the same refusal the game would hit. Reading it *now*
-        means the next selection can lock this skin instead of crashing.
+        There is no way to ask LTK for this verdict in advance. Its
+        ``check_mod_health`` command answers ``healthy`` for an archive the
+        patcher later refuses, because the base-skin rule it needs compares
+        the archive against the *loaded* game's skin table. Measured on
+        D-PC 2026-11-25: check_mod_health -> health=healthy, counts all 0,
+        for the same mod that produced c0000229 minutes later. So the
+        verdict only exists once the game has run, and the log is where it
+        lands.
 
-        A health check is slow (it hashes the whole mod), so it is best effort
-        and bounded: a slow or absent answer must never delay the injection
-        the player is waiting on.
+        The line the DLL writes names the champion, not the archive:
+
+            [ltk-dll ERROR] lazy verification failed, not overlaying:
+              wad data/final/champions/zed.wad.client:
+              base-skin check: skin0 is another skin ...
+
+        This runs at prepare() time, before the game for *this* skin, so it
+        can only carry a refusal from an earlier launch. That is exactly the
+        one worth remembering: the archive on disk has not changed since.
+
+        Best effort throughout. A missing log or an unreadable one must never
+        affect the injection the player is waiting on.
         """
-        from injection.blocked_skins import record_refusal
+        try:
+            self._scan_ltk_log_for_refusal(archive)
+        except Exception as exc:  # noqa: BLE001 - never break an injection
+            log.debug("[LTK] Refusal scan skipped for %s: %s", archive, exc)
+
+    def _scan_ltk_log_for_refusal(self, archive) -> None:
+        """Find this archive's champion in LTK's log; record a refusal if found."""
+        from injection.blocked_skins import champion_of_archive, record_refusal
         from injection.skin_preflight import _skin_id_of
 
-        try:
-            answer = bridge.check_mod_health(mod_id)
-        except (BridgeUnavailable, BridgeCommandError) as exc:
-            log.debug("[LTK] Health check unavailable for %s: %s", mod_id, exc)
-            return
-        except Exception as exc:  # noqa: BLE001 - never break an injection
-            log.debug("[LTK] Health check raised for %s: %s", mod_id, exc)
+        champion = champion_of_archive(archive)
+        if not champion:
+            log.debug("[LTK] No champion for %s; cannot match a log refusal", archive)
             return
 
-        value = (answer.get("response") or {}).get("value") or {}
-        if not isinstance(value, dict):
-            return
-        verdict = str(value.get("verdict") or value.get("status") or "")
-        code = str(value.get("code") or "")
-        reason = str(value.get("reason") or value.get("detail") or "")
-        healthy = value.get("healthy")
-        if healthy is None:
-            healthy = verdict.lower() in ("ok", "healthy", "clean", "") and not code
-
-        if healthy:
-            # A clean verdict clears an older refusal for the same content,
-            # which is how a repaired skin becomes pickable again.
-            from injection.blocked_skins import forget
-            forget(archive)
+        log_path = _newest_manager_log()
+        if log_path is None:
             return
 
-        code = code or "c0000229"
-        log.warning("[LTK] Manager refused mod %s (%s): %s", mod_id, code, reason or verdict)
-        record_refusal(archive, code=code, reason=reason or verdict,
-                       skin_id=_skin_id_of(archive))
+        refusal = _refusal_for_champion(log_path, champion)
+        if refusal is None:
+            return
+
+        code, reason = refusal
+        log.warning("[LTK] Log refuses %s (%s): %s", champion, code, reason)
+        record_refusal(archive, code=code, reason=reason,
+                       skin_id=_skin_id_of(archive),
+                       champion=champion)
+
 
     def _confirm_patcher(self, bridge: LtkBridge, mod_id: str, *,
                          timeout: float = 15.0) -> None:
@@ -592,3 +601,64 @@ class LtkRuntime:
             # A new game resets the sweep flag so the next countdown still
             # clears whatever the finished one left behind.
             self._sanitised_for_countdown = False
+
+
+def _manager_log_dir() -> Optional[Path]:
+    """LTK Manager's log folder under the desktop user's roaming appdata."""
+    roaming = os.environ.get("APPDATA")
+    if not roaming:
+        return None
+    directory = Path(roaming) / "dev.leaguetoolkit.manager" / "logs"
+    return directory if directory.is_dir() else None
+
+
+def _newest_manager_log() -> Optional[Path]:
+    directory = _manager_log_dir()
+    if directory is None:
+        return None
+    try:
+        logs = [p for p in directory.glob("ltk-manager*.log") if p.is_file()]
+    except OSError:
+        return None
+    if not logs:
+        return None
+    return max(logs, key=lambda p: p.stat().st_mtime)
+
+
+# "wad data/final/champions/zed.wad.client: base-skin check: skin0 is ..."
+_REFUSAL_RE = re.compile(
+    r"(?:lazy verification failed|not overlaying|scan rejected)[^\n]*?"
+    r"champions/(?P<champion>[a-z0-9]+)\.wad\.client"
+    r"(?:[^\n]*?base-skin check:\s*(?P<reason>[^\r\n]*))?",
+    re.IGNORECASE,
+)
+_CODE_RE = re.compile(r"\b(c0000[0-9a-f]{3})\b", re.IGNORECASE)
+
+
+def _refusal_for_champion(log_path: Path, champion: str) -> Optional[tuple]:
+    """(code, reason) when *log_path* shows LTK refusing *champion*'s WAD."""
+    wanted = champion.lower()
+    try:
+        with log_path.open("r", encoding="utf-8", errors="replace") as handle:
+            lines = handle.readlines()[-4000:]
+    except OSError:
+        return None
+
+    found = None
+    for index, line in enumerate(lines):
+        match = _REFUSAL_RE.search(line)
+        if not match:
+            continue
+        if match.group("champion").lower() != wanted:
+            continue
+        reason = (match.group("reason") or "").strip()
+        code = "c0000229"
+        for follow in (line, lines[index + 1] if index + 1 < len(lines) else ""):
+            code_match = _CODE_RE.search(follow)
+            if code_match:
+                code = code_match.group(1).lower()
+                break
+        if not reason:
+            reason = "LTK refused this skin's WAD (base-skin check)"
+        found = (code, reason)  # keep the last: the most recent launch wins
+    return found
