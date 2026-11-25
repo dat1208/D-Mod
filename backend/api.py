@@ -313,6 +313,14 @@ def _patcher_health() -> dict:
         if _patcher_health_cache["key"] == key:
             return _patcher_health_cache["value"]
         result = check()
+        # A blocked patcher is the only case where "is there a fix upstream?"
+        # is worth asking, and GitHub must not be hit on every poll.
+        if result.get("blocking"):
+            from injection.patcher_release import check as check_release
+
+            from injection.tools.patcher_update import _manager_exe
+
+            result["release"] = check_release(_manager_exe())
         _patcher_health_cache["key"] = key
         _patcher_health_cache["value"] = result
         return result

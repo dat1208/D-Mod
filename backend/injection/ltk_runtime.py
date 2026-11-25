@@ -392,6 +392,21 @@ class LtkRuntime:
                 health = check_patcher()
                 self._patcher_health = health
                 if health.get("blocking"):
+                    # Say whether waiting can help: a newer LTK release means
+                    # the fix exists; the same version means it does not yet.
+                    try:
+                        from injection.patcher_release import (
+                            STATUS_CURRENT, check as check_release)
+                        from injection.tools.patcher_update import _manager_exe
+
+                        release = check_release(_manager_exe())
+                        health["release"] = release
+                        if release.get("status") == STATUS_CURRENT:
+                            log.error("[LTK] Blocked, and LTK %s is the newest "
+                                      "release -- pending an upstream fix",
+                                      release.get("latest"))
+                    except Exception as exc:  # noqa: BLE001 - never mask the block
+                        log.debug("[LTK] release check unavailable (%s)", exc)
                     log.error("[LTK] Refusing to inject: %s", health.get("detail"))
                     raise LtkRuntimeError(health.get("detail") or
                                           "LTK's patcher cannot reach the game")
