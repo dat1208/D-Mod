@@ -267,6 +267,9 @@ class LtkRuntime:
         # Likewise for the library sweep: once per process is enough.
         self._health_check_off_done = False
         self._skinhack_warning: Optional[dict] = None
+        # Last patcher-health observation: whether LTK's DLL can reach the
+        # game on this build at all. Distinct from a per-skin refusal.
+        self._patcher_health: Optional[dict] = None
 
     def _bridge_ready(self) -> LtkBridge:
         if self._bridge and self._bridge.alive():
@@ -381,6 +384,18 @@ class LtkRuntime:
                 return
             self._starting = True
             try:
+                # A patcher that demonstrably cannot reach the game makes every
+                # skin a wasted match. Checked before the archive scan because
+                # it is the cheaper read and the wider failure.
+                from injection.patcher_health import check as check_patcher
+
+                health = check_patcher()
+                self._patcher_health = health
+                if health.get("blocking"):
+                    log.error("[LTK] Refusing to inject: %s", health.get("detail"))
+                    raise LtkRuntimeError(health.get("detail") or
+                                          "LTK's patcher cannot reach the game")
+
                 from injection.skin_preflight import scan_archive
 
                 warning = scan_archive(archive)

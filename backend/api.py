@@ -93,6 +93,7 @@ def _status(ctx: ApiContext) -> dict:
         status["downloads"] = ctx.app_status.get_status_summary()
     if ctx.startup is not None:
         status["startup"] = ctx.startup.snapshot()
+    status["patcher_health"] = _patcher_health()
     return status
 
 
@@ -285,6 +286,40 @@ def _shutdown(ctx: ApiContext, body: dict) -> dict:
     log.info("[api] Shutdown requested by the UI")
     ctx.state.stop = True
     return {"stopping": True}
+
+
+# LTK's log is read once per WRITE, not once per request: the UI polls
+# /api/status every two seconds and re-parsing a 300 KB log that often would
+# cost more than the answer is worth.
+_patcher_health_cache = {"key": None, "value": None}
+
+
+def _patcher_health() -> dict:
+    """Whether LTK's patcher can actually reach the game on this build.
+
+    Read from LTK's own log, cached by that log's size and mtime. Never
+    raises: a warning that cannot be computed must not take the status
+    endpoint down with it.
+    """
+    try:
+        from injection.patcher_health import check, newest_manager_log
+
+        log_path = newest_manager_log()
+        if log_path is None:
+            return {"verdict": "unknown", "blocking": False,
+                    "detail": "LTK Manager has not run yet"}
+        stat = log_path.stat()
+        key = (str(log_path), stat.st_size, stat.st_mtime)
+        if _patcher_health_cache["key"] == key:
+            return _patcher_health_cache["value"]
+        result = check()
+        _patcher_health_cache["key"] = key
+        _patcher_health_cache["value"] = result
+        return result
+    except Exception as exc:  # noqa: BLE001 - status must always answer
+        log.warning("[api] patcher health unavailable (%s)", exc)
+        return {"verdict": "unknown", "blocking": False,
+                "detail": "could not read LTK's log"}
 
 
 # (method, path) -> handler. Handlers take (ctx) or (ctx, body).
