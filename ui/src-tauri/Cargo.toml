@@ -1,6 +1,6 @@
 [package]
 name = "d-mod"
-version = "1.0.1"
+version = "1.0.2"
 description = "D-Changer desktop UI"
 authors = ["D-Changer"]
 edition = "2021"

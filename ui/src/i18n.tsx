@@ -36,6 +36,11 @@ const vi: Record<string, string> = {
   "Selected skin": "Skin đã chọn",
   "Historic mode": "Chế độ lịch sử",
   "Random mode": "Chế độ ngẫu nhiên",
+  "Skins will not apply": "Skin sẽ không hiển thị",
+  "A newer LTK release ({latest}) is available; update to fix this.":
+    "Đã có bản LTK mới ({latest}); cập nhật để khắc phục.",
+  "LTK {version} is the newest release — waiting for an upstream fix.":
+    "LTK {version} là bản mới nhất — đang chờ nhà phát triển sửa.",
   on: "bật",
   off: "tắt",
   "Enter a champ select to pick a skin.": "Vào chọn tướng để chọn skin.",

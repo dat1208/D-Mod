@@ -830,3 +830,14 @@ button.ghost:hover:not(:disabled) {
 }
 .segment.active .segment-count { background: #c8aa6e; }
 .warn { color: #c8aa6e; }
+
+/* Patcher health: a blocked patcher means every skin is a stock-skin game.
+   Given an accent border so it reads as a warning, not another panel. */
+.blocked-panel {
+  border-left: 3px solid var(--bad);
+}
+
+.blocked-panel h3 {
+  color: var(--bad);
+  margin-bottom: 10px;
+}

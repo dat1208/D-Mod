@@ -65,6 +65,10 @@ export const Dashboard = memo(function Dashboard({ status, error }: { status: St
     );
   }
 
+  // Warn before a match, not after: a blocked patcher means every skin is a
+  // stock-skin game. Shown above the hero so it cannot be scrolled past.
+  const blocked = status.patcher_health?.blocking ? status.patcher_health : null;
+
   const inGame = status.phase && status.phase !== "None" && status.phase !== "Lobby";
   const champion = status.locked_champion_id ?? null;
   const skin = status.selected_skin_id ?? null;
@@ -73,6 +77,24 @@ export const Dashboard = memo(function Dashboard({ status, error }: { status: St
     <section>
       <h2>{t("Dashboard")}</h2>
       <p className="subtitle">{t("Live view of the engine.")}</p>
+
+      {blocked && (
+        <div className="card blocked-panel">
+          <h3 className="bad">{t("Skins will not apply")}</h3>
+          <p className="message">{blocked.detail}</p>
+          {blocked.release && blocked.release.status !== "unknown" && (
+            <p className="muted" style={{ marginBottom: 0 }}>
+              {blocked.release.status === "update_available"
+                ? t("A newer LTK release ({latest}) is available; update to fix this.", {
+                    latest: blocked.release.latest ?? "",
+                  })
+                : t("LTK {version} is the newest release — waiting for an upstream fix.", {
+                    version: blocked.release.installed ?? "",
+                  })}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="hero">
         <div className="eyebrow">

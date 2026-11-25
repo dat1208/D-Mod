@@ -16,6 +16,24 @@ export interface Startup {
   error: string;
 }
 
+// Whether LTK's patcher can actually reach the game on this build, read from
+// LTK's own log (backend/injection/patcher_health.py). "unknown" means no game
+// has run yet -- it is not a warning.
+export interface PatcherRelease {
+  status: "update_available" | "up_to_date" | "unknown";
+  installed: string | null;
+  latest: string | null;
+  detail: string;
+}
+
+export interface PatcherHealth {
+  build?: string | null;
+  verdict: "patched_ok" | "dll_absent" | "unknown";
+  detail: string;
+  blocking: boolean;
+  release?: PatcherRelease;
+}
+
 export interface Status {
   app: string;
   version: string;
@@ -27,6 +45,7 @@ export interface Status {
   historic_mode_active?: boolean;
   random_mode_active?: boolean;
   startup?: Startup;
+  patcher_health?: PatcherHealth;
   downloads?: {
     skins_downloaded: boolean;
     previews_downloaded: boolean;
